@@ -1,0 +1,145 @@
+# ikon
+
+Ikon minimalis dan flat untuk terminal.
+
+`ikon` menampilkan nama berkas bersama satu glyph yang menunjukkan jenisnya,
+diwarnai menurut kategori. Setiap ikon berasal dari satu keluarga glyph yang
+sama, dan paletnya cuma delapan warna — itulah yang membuatnya terasa tenang,
+bukan seperti daftar logo.
+
+```
+󰅩 src   󰙨 app.test.ts  󰟓 main.go  󰗚 README.md   󰞹 backup.tar.gz  󰯅 .env
+```
+
+## Dua aturan yang ditegakkan mesin
+
+Desain yang cuma ditulis di dokumen akan luntur. Dua prinsip di bawah ini punya
+penjaganya sendiri:
+
+1. **Hanya glyph `nf-md-` (Material Design Icons).** Semuanya digambar pada
+   grid 24px yang sama dengan ketebalan stroke seragam. Satu glyph dari
+   keluarga lain sudah cukup untuk merusak kesan flat — jadi `build.rs`
+   memeriksanya, dan salah keluarga berarti gagal compile.
+2. **Maksimum delapan warna, satu warna per keluarga.** Seluruh bahasa
+   pemrograman berbagi satu warna; bedanya dibawa oleh bentuk ikon. Setiap
+   aturan menyatakan keluarganya di tabel `[families]` — warnanya diturunkan
+   dari situ, jadi "siapa berbagi warna dengan siapa" terbaca dari satu
+   tabel, bukan ditebak dari 64 baris. Paletnya diambil dari 16 warna ANSI
+   terminal, jadi otomatis selaras (dan ikut berubah) saat kamu ganti theme
+   terminal. Test memegang empat sekaligus: warna kesembilan = gagal, dua
+   keluarga berebut satu warna = gagal, dua tetangga beda keluarga yang
+   sewarna = gagal, dan `dim` melebihi 10 aturan = gagal.
+
+## Dokumentasi
+
+* [`docs/konfigurasi.md`](docs/konfigurasi.md) — struktur `icons.toml` seluruhnya:
+  palet, keluarga warna, kategori, urutan resolusi, dan cara menambah aturan.
+* [`docs/desain.md`](docs/desain.md) — mengapa desainnya begini: delapan warna,
+  satu keluarga satu warna, batas `dim`, serta aturan ketetanggaan.
+
+## Pakai
+
+```
+ikon                      # daftar direktori saat ini
+ikon src/                 # beberapa path sekaligus juga bisa
+ikon -a --sort size       # termasuk berkas tersembunyi, urut ukuran
+ikon -1                   # satu entri per baris
+ikon --list               # cetak seluruh tabel pemetaan, untuk ditinjau
+ikon --gallery            # cetak contoh ikon dari tiap aturan
+ikon --audit              # periksa konsistensi icons.toml
+```
+
+| Opsi | Arti |
+|---|---|
+| `-a`, `--all` | tampilkan berkas tersembunyi |
+| `-1` | satu entri per baris |
+| `--icons <mode>` | `auto`, `always`, `never` (bawaan `auto`) |
+| `--color <mode>` | `auto`, `always`, `never` (bawaan `auto`) |
+| `--sort <kunci>` | `name`, `ext`, `size`, `time` (bawaan `name`) |
+| `--width <kolom>` | paksa lebar tata letak |
+| `--list` | cetak tabel pemetaan |
+| `--gallery` | cetak contoh ikon dari tiap aturan |
+| `--audit` | periksa konsistensi pemetaan |
+
+Alias yang didukung: `--colour` (sama dengan `--color`), `--no-color` (sama
+dengan `--color never`), `--sort extension` / `--sort mtime`, dan `--` untuk
+menghentikan parsing opsi.
+
+| Variabel lingkungan | Arti |
+|---|---|
+| `NO_COLOR` | matikan warna kalau diisi (nilai apa pun) |
+| `CLICOLOR_FORCE` | paksa ikon & warna walau bukan terminal (selain `0`) |
+| `IKON_ICONS` | nilai bawaan untuk `--icons` |
+| `IKON_COLOR` | nilai bawaan untuk `--color` |
+| `COLUMNS` | lebar kolom kalau terminal tidak bisa dideteksi |
+
+Ikon memerlukan font yang sudah di-patch Nerd Fonts.
+
+Kalau terminalmu tidak terdeteksi sebagai terminal (MinTTY di Git Bash paling
+sering), ikon dan warna dimatikan otomatis supaya output tetap bersih saat
+disalurkan ke program lain. Untuk memaksanya:
+
+```
+export IKON_ICONS=always
+export IKON_COLOR=always
+```
+
+## Cara kerjanya
+
+```
+nama berkas ──► Rules::resolve_*──► nama glyph + nama warna
+                                       │
+                        Glyphs ────────┴──► karakter + kode ANSI ──► render
+```
+
+Yang penting dari bagan itu: resolver tidak pernah tahu karakter apa yang
+dipakai, dan renderer tidak pernah tahu aturan pencocokannya. Karena itu
+`icons.toml` bisa diubah tanpa menyentuh kode sama sekali.
+
+```
+icons.toml            sumber kebenaran tunggal: bentuk + keluarga warna + cakupan
+assets/glyphs.toml    nama glyph → codepoint (hasil generate, ikut di-commit)
+build.rs              lint saat build: keluarga glyph & keberadaan glyph
+src/mapping.rs        pemuatan, indeks, resolver, dan audit
+src/render.rs         warna ANSI + tata letak grid
+src/terminal.rs       deteksi lebar terminal, tanpa dependensi
+tools/gen-glyphs.py   memangkas tabel glyph upstream
+docs/                 dokumentasi konfigurasi & desain
+```
+
+Urutan pencocokan, dari yang paling spesifik: nama folder well-known → nama
+berkas persis → akhiran (`main_test.go`) → awalan (`README`, `LICENSE`) →
+ekstensi terpanjang (`.tar.gz` menang atas `.gz`) → bawaan.
+
+Untuk menambah jenis berkas baru, cukup tambahkan string ke daftar di
+`icons.toml`. Kamu tidak perlu menambah ikon baru.
+
+## Asal data
+
+* Codepoint glyph diambil dari data resmi
+  [Nerd Fonts](https://github.com/ryanoasis/nerd-fonts) v3.4.0 (MIT) lewat
+  `tools/gen-glyphs.py`. Codepoint adalah fakta, dan hanya glyph yang dipakai
+  yang masuk repo — 55 dari 10.764.
+* Kode di proyek ini ditulis dari nol. Konsep "tampilkan ikon di terminal"
+  bukan hal baru, dan ada banyak proyek lain di sana, tapi tidak ada baris kode
+  maupun tabel pemetaan yang disalin dari proyek mana pun.
+
+## Lisensi
+
+MIT — berkas [LICENSE](LICENSE). Data glyph berasal dari Nerd Fonts (MIT).
+
+## Pengembangan
+
+```bash
+cargo test                              # termasuk audit: 20 test
+cargo run -- --audit
+python tools/gen-glyphs.py --refresh    # regenerasi tabel glyph
+```
+
+Testnya memuat audit yang sama dengan `--audit`, jadi pemetaan yang tidak
+konsisten tidak akan pernah sampai ke rilis.
+
+Di Windows, toolchain `stable-x86_64-pc-windows-gnu` berjalan tanpa Visual
+Studio Build Tools. Ketergantungan sengaja dijaga bebas dari crate yang memuat
+`windows-sys`, karena itu memaksa `dlltool` untuk membuat import library dan
+justru gagal di toolchain tersebut.

@@ -1,0 +1,35 @@
+# Gerbang kualitas yang sama dengan yang dijalankan lokal:
+#   cargo fmt --check && cargo clippy --all-targets -- -D warnings
+#   && cargo test && cargo run -- --audit && cargo build --release
+# Test sudah memuat audit pemetaan, tapi dijalankan terpisah juga supaya
+# kegagalannya langsung terbaca sebagai langkah "Audit ikon" di UI GitHub.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Clippy (tanpa peringatan)
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Test (termasuk audit pemetaan)
+        run: cargo test
+
+      - name: Audit ikon
+        run: cargo run -- --audit
+
+      - name: Build rilis
+        run: cargo build --release

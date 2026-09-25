@@ -1,0 +1,25 @@
+[package]
+name = "ikon"
+version = "0.1.0"
+edition = "2021"
+description = "Ikon minimalis dan flat untuk terminal"
+license = "MIT"
+repository = "https://github.com/startupmini/Ticon"
+
+[[bin]]
+name = "ikon"
+path = "src/main.rs"
+
+# Sengaja dijaga sekecil ini. Crate yang menyentuh API Windows lewat
+# `windows-sys` memaksa `dlltool` dari toolchain `windows-gnu`, dan itu
+# menambah rantai alat hanya untuk satu angka lebar terminal — sudah dihitung
+# sendiri di src/terminal.rs.
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+unicode-width = "0.2"
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
