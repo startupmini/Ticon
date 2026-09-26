@@ -1,0 +1,89 @@
+# Rilis biner untuk Windows, Linux, dan macOS.
+#
+# Pemicu tag untuk rilis berikutnya. `workflow_dispatch` ada untuk rilis yang
+# terlewat — v0.1.0 sudah bertag sebelum workflow ini dibuat, jadi tidak bisa
+# memicu workflow dari push tag-nya.
+#
+# Biner selalu dibangun dari ref tag, bukan dari branch: yang Terbit di GitHub
+# harus persis sama dengan yang di-tag.
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag yang dictatornerilis (untuk rilis yang terlewat)"
+        required: true
+
+# Beda dari ci.yml: job ini menulis ke repo (membuat GitHub Release), jadi
+# haknya lebih longgar — dan hanya di file ini.
+permissions:
+  contents: write
+
+jobs:
+  rilis:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.pilih.outputs.tag }}
+    steps:
+      - id: pilih
+        run: echo "tag=${{ inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Buat Rilis bila belum ada
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ steps.pilih.outputs.tag }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "rilis untuk $tag sudah ada — lanjut unggah aset"
+          else
+            gh release create "$tag" --title "ikon $tag" --generate-notes
+          fi
+
+  build:
+    needs: rilis
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.rilis.outputs.tag }}
+
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-09-12
+        with:
+          toolchain: stable
+
+      - name: Build rilis
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Kemas (tar.gz)
+        if: runner.os != 'Windows'
+        run: |
+          tar czf "ikon-${{ needs.rilis.outputs.tag }}-${{ matrix.target }}.tar.gz" \
+            -C "target/${{ matrix.target }}/release" ikon
+
+      - name: Kemas (zip)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "target/${{ matrix.target }}/release/ikon.exe" `
+            -DestinationPath "ikon-${{ needs.rilis.outputs.tag }}-${{ matrix.target }}.zip"
+
+      - name: Unggah ke Rilis
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: gh release upload "${{ needs.rilis.outputs.tag }}" ikon-*.* --clobber
