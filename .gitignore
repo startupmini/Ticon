@@ -1,0 +1,9 @@
+/target
+/.cache
+__pycache__/
+
+# Ruang kerja alat: bahan belajar dan berkas contoh, bukan bagian proyek.
+/.freebuff
+
+# Arsip proyek lain yang dipelajari sebagai referensi — tidak ikut dikirim.
+/Terminal-Icons-main.zip

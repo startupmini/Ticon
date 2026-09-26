@@ -1,0 +1,14 @@
+# Action di `ci.yml` sengaja dipin ke commit SHA dan crate-nya diminimalkan;
+# Dependabot yang memperbaruinya, supaya kedua bentuk pin tetap hidup tanpa
+# tangan. PR dari Dependabot tetap harus lolos gerbang biasa sebelum merge.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "monthly"

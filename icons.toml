@@ -1,0 +1,440 @@
+# ===========================================================================
+#  ikon — sumber kebenaran tunggal
+# ===========================================================================
+#
+#  Setiap aturan hidup di SATU tempat: bentuk ikon, warna, dan cakupannya ada
+#  di blok yang sama. Tidak ada file kembar yang harus dijaga sinkron, jadi
+#  tidak ada cara untuk menambah ikon tanpa menambah warnanya.
+#
+#  Dua prinsip yang ditegakkan mesin, bukan cuma niat:
+#
+#   1. Hanya glyph dari keluarga `nf-md-` (Material Design Icons). Semuanya
+#      digambar di grid 24px yang sama dengan stroke seragam — itulah yang
+#      membuat setnya terasa flat. Satu glyph dari keluarga lain merusaknya.
+#      Dicek oleh `build.rs`, jadi salah keluarga = gagal compile.
+#
+#   2. Warna datang dari 16 warna ANSI terminal, maksimum 8 slot. Ikon diberi
+#      warna per KATEGORI, bukan per tipe file. Ini yang menahan keramaian:
+#      seluruh bahasa pemrograman berbagi satu warna, dan perbedaannya dibawa
+#      oleh bentuk ikon (lihat `by_ext` di kategori `code`).
+#
+#      Karena itu setiap aturan tidak lagi menulis warnanya sendiri: ia
+#      menyatakan KELUARGA-nya, dan tabel [families] menerjemahkan keluarga
+#      itu menjadi satu warna. Satu keluarga = satu warna, satu warna = satu
+#      keluarga — jadi "siapa yang berbagi warna dengan siapa" terbaca dari
+#      satu tabel, bukan ditebak dari 64 baris. Yang menegakkan: `cargo test`
+#      dan `ikon --audit` (keluarga tak dikenal, dua keluarga berebut warna,
+#      warna palet menganggur, tetangga beda keluarga yang sewarna, awalan atau
+#      akhiran yang diklaim dua kategori, serta pemakaian `dim` yang melampaui
+#      MAX_DIM_RULES). `load()` juga menolak karakter kontrol/bidi dan kode
+#      palet yang bukan angka.
+#
+#  Urutan resolusi, dari yang paling spesifik:
+#    1. nama folder well-known (bagian [dirs])
+#    2. nama file well-known   (field `names`)
+#    3. akhiran nama           (field `suffix`)
+#    4. awalan nama            (field `prefix`)
+#    5. ekstensi terpanjang    (field `ext`, mis. ".tar.gz" menang atas ".gz")
+#    6. kategori bawaan: `folder` untuk folder, `file` untuk file
+#
+#  Semua pencocokan nama tidak peduli huruf besar/kecil. Semua ekstensi
+#  ditulis huruf kecil.
+# ===========================================================================
+
+[palette]
+# Nilai = kode ANSI SGR. Karena memakai warna terminal (bukan truecolor
+# hardcoded), palet ini otomatis selaras dengan theme terminal kamu — dan
+# otomatis ikut berubah kalau kamu ganti theme.
+red     = "31"
+green   = "32"
+yellow  = "33"
+blue    = "34"
+magenta = "35"
+cyan    = "36"
+white   = "37"
+dim     = "90"
+
+# ---------------------------------------------------------------------------
+#  Keluarga warna
+# ---------------------------------------------------------------------------
+#
+#  Nama kiri = keluarga, nilai = warna dari [palette]. Setiap kategori dan
+#  folder khusus di bawah hanya menyebut keluarga; warnanya diturunkan dari
+#  tabel ini — inilah satu-satunya tempat keputusan "siapa berbagi warna".
+#
+#  Yang ditegakkan `cargo test` dan `ikon --audit`:
+#    - setiap aturan punya keluarga yang ada di sini,
+#    - satu keluarga satu warna dan satu warna satu keluarga,
+#    - tidak ada warna palet yang menganggur,
+#    - dua aturan yang bersebelahan hanya boleh sewarna kalau satu keluarga,
+#    - `dim` maksimal MAX_DIM_RULES aturan (sekarang 9, turun dari 21).
+[families]
+kode    = "cyan"    # bahasa, kontainer, infra kode, folder sumber
+kerja   = "green"   # skrip, uji, tugas
+data    = "yellow"  # data terstruktur, arsip, lockfile, paket, citra disk
+media   = "magenta" # gaya, gambar, audio, video, model, font
+dokumen = "blue"    # folder bawaan + tulisan: catatan, readme, pdf, kantor
+aman    = "red"     # rahasia, kunci, sertifikat, jejak vcs
+netral  = "white"   # teks polos, konfigurasi, biner — tanpa aksen
+redup   = "dim"     # berkas tak dikenal + artefak hasil generate
+
+# ---------------------------------------------------------------------------
+#  Folder well-known
+# ---------------------------------------------------------------------------
+[dirs]
+src          = { glyph = "nf-md-code_braces",            family = "kode" }
+lib          = { glyph = "nf-md-code_braces",            family = "kode" }
+bin          = { glyph = "nf-md-application_outline",    family = "netral" }
+test         = { glyph = "nf-md-test_tube",              family = "kerja" }
+tests        = { glyph = "nf-md-test_tube",              family = "kerja" }
+spec         = { glyph = "nf-md-test_tube",              family = "kerja" }
+docs         = { glyph = "nf-md-book_open_page_variant", family = "dokumen" }
+doc          = { glyph = "nf-md-book_open_page_variant", family = "dokumen" }
+assets        = { glyph = "nf-md-image_outline",         family = "media" }
+images        = { glyph = "nf-md-image_outline",         family = "media" }
+media        = { glyph = "nf-md-movie_outline",          family = "media" }
+examples     = { glyph = "nf-md-code_braces",            family = "kode" }
+samples      = { glyph = "nf-md-code_braces",            family = "kode" }
+node_modules = { glyph = "nf-md-package_variant_closed", family = "redup" }
+vendor       = { glyph = "nf-md-package_variant_closed", family = "redup" }
+target       = { glyph = "nf-md-cached",                 family = "redup" }
+build        = { glyph = "nf-md-cached",                 family = "redup" }
+dist         = { glyph = "nf-md-cached",                 family = "redup" }
+out          = { glyph = "nf-md-cached",                 family = "redup" }
+".git"       = { glyph = "nf-md-source_branch",          family = "aman" }
+".github"    = { glyph = "nf-md-source_branch",          family = "aman" }
+".gitlab"    = { glyph = "nf-md-source_branch",          family = "aman" }
+".venv"      = { glyph = "nf-md-code_braces",            family = "kode" }
+".cargo"     = { glyph = "nf-md-cog_outline",            family = "netral" }
+".config"    = { glyph = "nf-md-cog_outline",            family = "netral" }
+".cache"     = { glyph = "nf-md-cached",                 family = "redup" }
+
+# ---------------------------------------------------------------------------
+#  Bawaan. Ini juga data, bukan hardcode di kode.
+# ---------------------------------------------------------------------------
+[categories.folder]
+glyph = "nf-md-folder_outline"
+family = "dokumen"
+
+[categories.file]
+glyph = "nf-md-file_outline"
+family = "redup"
+
+# ---------------------------------------------------------------------------
+#  Kode
+# ---------------------------------------------------------------------------
+
+[categories.code]
+glyph  = "nf-md-code_braces"
+family = "kode"
+ext    = [
+    ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts",
+    ".py", ".pyi", ".go", ".rs", ".c", ".h", ".cc", ".cpp", ".cxx", ".hpp", ".hh",
+    ".cs", ".csx", ".java", ".kt", ".kts", ".scala", ".sc", ".rb", ".php",
+    ".swift", ".m", ".mm", ".lua", ".pl", ".pm", ".r", ".jl", ".hs", ".lhs",
+    ".ex", ".exs", ".erl", ".hrl", ".clj", ".cljs", ".cljc", ".edn",
+    ".dart", ".zig", ".nim", ".v", ".vh", ".groovy", ".gradle", ".fs", ".fsx", ".fsi",
+    ".vb", ".vbs", ".asm", ".s", ".cu", ".cuh", ".glsl", ".hlsl", ".vert", ".frag",
+    ".wgsl", ".sol", ".move", ".proto", ".f90", ".f95", ".f03", ".cob", ".adb", ".ads",
+    ".hx", ".purs", ".elm", ".cr", ".nix", ".gleam", ".odin", ".roc",
+]
+names  = [
+    "makefile", "gnumakefile", "cmakelists.txt", "rakefile", "gemfile",
+    "justfile", ".justfile", "procfile", "build.gradle", "settings.gradle",
+    "pom.xml", "meson.build", "cargo.toml",
+]
+
+# Bentuk berbeda per bahasa, warna tetap SAMA (satu kategori = satu warna).
+# Kalau kamu merasa ini masih terlalu ramai, hapus blok ini — hasilnya semua
+# file kode tampil dengan satu ikon `nf-md-code_braces` yang sama.
+[categories.code.by_ext]
+".go"    = "nf-md-language_go"
+".rs"    = "nf-md-language_rust"
+".py"    = "nf-md-language_python"
+".pyi"   = "nf-md-language_python"
+".js"    = "nf-md-language_javascript"
+".jsx"   = "nf-md-language_javascript"
+".mjs"   = "nf-md-language_javascript"
+".cjs"   = "nf-md-language_javascript"
+".ts"    = "nf-md-language_typescript"
+".tsx"   = "nf-md-language_typescript"
+".mts"   = "nf-md-language_typescript"
+".cts"   = "nf-md-language_typescript"
+".java"  = "nf-md-language_java"
+".php"   = "nf-md-language_php"
+".cs"    = "nf-md-language_csharp"
+".rb"    = "nf-md-language_ruby"
+".swift" = "nf-md-language_swift"
+".kt"    = "nf-md-language_kotlin"
+".kts"   = "nf-md-language_kotlin"
+".c"     = "nf-md-language_c"
+".h"     = "nf-md-language_c"
+".cc"    = "nf-md-language_cpp"
+".cpp"   = "nf-md-language_cpp"
+".cxx"   = "nf-md-language_cpp"
+".hpp"   = "nf-md-language_cpp"
+".lua"   = "nf-md-language_lua"
+".r"     = "nf-md-language_r"
+".hs"    = "nf-md-language_haskell"
+".lhs"   = "nf-md-language_haskell"
+
+[categories.shell]
+glyph  = "nf-md-console_line"
+family = "kerja"
+ext    = [".sh", ".bash", ".zsh", ".fish", ".ksh", ".csh", ".tcsh", ".nu", ".awk", ".sed",
+          ".ps1", ".psm1", ".psd1", ".ps1xml", ".bat", ".cmd"]
+names  = [".bashrc", ".zshrc", ".bash_profile", ".bash_aliases", ".profile", ".inputrc", ".vimrc"]
+prefix = ["install.", "uninstall."]
+
+[categories.markup]
+glyph = "nf-md-language_html5"
+family = "data"
+ext   = [".html", ".htm", ".xhtml", ".hbs", ".mustache", ".ejs", ".pug", ".haml", ".jinja",
+         ".j2", ".njk", ".xml", ".xsl", ".xslt", ".xsd", ".dtd", ".rss", ".atom"]
+
+[categories.markup.by_ext]
+".xml"  = "nf-md-xml"
+".xsl"  = "nf-md-xml"
+".xslt" = "nf-md-xml"
+".xsd"  = "nf-md-xml"
+".dtd"  = "nf-md-xml"
+
+[categories.style]
+glyph = "nf-md-language_css3"
+family = "media"
+ext   = [".css", ".scss", ".sass", ".less", ".styl", ".pcss", ".postcss"]
+
+# ---------------------------------------------------------------------------
+#  Data & konfigurasi
+# ---------------------------------------------------------------------------
+
+[categories.data]
+glyph  = "nf-md-code_json"
+family = "data"
+ext    = [".json", ".jsonc", ".json5", ".ndjson", ".geojson", ".webmanifest",
+          ".yaml", ".yml", ".toml", ".ini", ".csv", ".tsv", ".psv",
+          ".parquet", ".avro", ".orc", ".arrow", ".feather", ".h5", ".hdf5", ".npz", ".npy"]
+names  = ["package.json", "package-lock.json", "tsconfig.json", "cargo.lock",
+          "yarn.lock", "pnpm-lock.yaml", "composer.json", "composer.lock",
+          "go.mod", "go.sum", "requirements.txt", "pyproject.toml", "poetry.lock",
+          "gemfile.lock", "flake.lock", "deno.json", "bun.lockb"]
+prefix = [".prettierrc", ".eslintrc", ".babelrc", ".stylelintrc"]
+
+[categories.config]
+glyph  = "nf-md-cog_outline"
+family = "netral"
+ext    = [".conf", ".config", ".cfg", ".properties", ".prop", ".rc", ".prefs",
+          ".settings", ".editorconfig", ".gitconfig", ".npmrc", ".clang-format", ".tmpl"]
+names  = [".editorconfig", ".gitconfig", ".npmrc", ".yarnrc", ".htaccess",
+          ".gitkeep", ".mailmap", ".tool-versions", ".nvmrc", ".node-version"]
+
+[categories.secret]
+glyph  = "nf-md-shield_key_outline"
+family = "aman"
+ext    = [".env", ".secret", ".secrets"]
+names  = [".env", ".env.local", ".netrc", ".htpasswd", "credentials"]
+prefix = [".env."]
+
+[categories.lock]
+glyph = "nf-md-lock_outline"
+family = "data"
+ext   = [".lock", ".lockb", ".lck"]
+
+# ---------------------------------------------------------------------------
+#  Dokumentasi
+# ---------------------------------------------------------------------------
+
+[categories.doc]
+glyph = "nf-md-file_document_outline"
+family = "netral"
+ext   = [".txt", ".rst", ".tex", ".adoc", ".asciidoc", ".man", ".nfo", ".me", ".textile"]
+
+[categories.note]
+glyph = "nf-md-text_box_outline"
+family = "dokumen"
+ext   = [".md", ".markdown", ".mdx", ".org", ".wiki", ".creole"]
+
+[categories.readme]
+glyph  = "nf-md-book_open_page_variant"
+family = "dokumen"
+prefix = ["readme", "intro", "getting-started"]
+
+[categories.license]
+glyph  = "nf-md-license"
+family = "netral"
+prefix = ["license", "licence", "copying", "notice", "authors", "contributors", "patents"]
+
+[categories.task]
+glyph  = "nf-md-checkbox_marked_outline"
+family = "kerja"
+prefix = ["changelog", "changes", "history", "todo", "roadmap", "tasks"]
+
+[categories.log]
+glyph = "nf-md-format_list_bulleted"
+family = "netral"
+ext   = [".log", ".lof", ".errors"]
+
+[categories.pdf]
+glyph = "nf-md-file_pdf_box"
+family = "dokumen"
+ext   = [".pdf", ".djvu", ".xps", ".oxps", ".epub", ".mobi", ".azw3"]
+
+[categories.sheet]
+glyph = "nf-md-file_table_box_outline"
+family = "data"
+ext   = [".xls", ".xlsx", ".xlsm", ".xlsb", ".ods", ".numbers", ".sxc"]
+
+[categories.slide]
+glyph = "nf-md-file_presentation_box"
+family = "media"
+ext   = [".ppt", ".pptx", ".pptm", ".ppsx", ".odp", ".sxi"]
+
+[categories.word]
+glyph = "nf-md-file_word_box_outline"
+family = "dokumen"
+ext   = [".doc", ".docx", ".docm", ".rtf", ".odt", ".pages", ".wpd", ".abw"]
+
+# ---------------------------------------------------------------------------
+#  Media
+# ---------------------------------------------------------------------------
+
+[categories.image]
+glyph = "nf-md-image_outline"
+family = "media"
+ext   = [".png", ".jpg", ".jpeg", ".jpe", ".gif", ".webp", ".bmp", ".ico", ".tif", ".tiff",
+         ".avif", ".heic", ".heif", ".jxl", ".svg", ".svgz", ".psd", ".psb", ".ai", ".eps",
+         ".xcf", ".kra", ".tga", ".exr", ".hdr", ".raw", ".cr2", ".cr3", ".nef", ".arw",
+         ".dng", ".orf", ".rw2", ".webp2", ".jp2", ".j2k"]
+
+[categories.audio]
+glyph = "nf-md-music_note_outline"
+family = "media"
+ext   = [".mp3", ".wav", ".flac", ".ogg", ".oga", ".m4a", ".opus", ".aac", ".wma",
+         ".aiff", ".aif", ".ape", ".mid", ".midi", ".mod", ".xm", ".it", ".m3u", ".m3u8"]
+
+[categories.video]
+glyph = "nf-md-movie_outline"
+family = "media"
+ext   = [".mp4", ".m4v", ".mkv", ".mov", ".webm", ".avi", ".wmv", ".flv", ".mpg",
+         ".mpeg", ".3gp", ".ogv", ".vob", ".m2ts", ".srt", ".vtt", ".ass", ".sub"]
+
+# ---------------------------------------------------------------------------
+#  Arsip & biner
+# ---------------------------------------------------------------------------
+
+[categories.archive]
+glyph = "nf-md-folder_zip_outline"
+family = "data"
+ext   = [".zip", ".zipx", ".tar", ".gz", ".tgz", ".xz", ".txz", ".bz2", ".tbz2", ".bzip2",
+         ".7z", ".rar", ".zst", ".lz", ".lz4", ".lzma", ".cab", ".cpio", ".arj", ".ace",
+         ".tar.gz", ".tar.xz", ".tar.bz2", ".tar.zst", ".tar.lz4", ".jar", ".war", ".ear"]
+
+[categories.binary]
+glyph = "nf-md-application_outline"
+family = "netral"
+ext   = [".exe", ".dll", ".so", ".dylib", ".a", ".o", ".lib", ".class",
+         ".pyc", ".pyo", ".wasm", ".bin", ".elf", ".ko", ".sys", ".com", ".scr",
+         ".dsym", ".pdb", ".ilk", ".exp", ".manifest"]
+
+[categories.package]
+glyph = "nf-md-package_variant_closed"
+family = "data"
+ext   = [".deb", ".rpm", ".msi", ".msix", ".msixbundle", ".appx", ".apk", ".aab",
+         ".pkg", ".snap", ".flatpak", ".nupkg", ".gem", ".whl", ".crate", ".vsix"]
+
+[categories.disk]
+glyph = "nf-md-harddisk"
+family = "data"
+ext   = [".iso", ".img", ".vhd", ".vhdx", ".vmdk", ".qcow2", ".vdi", ".dmg", ".squashfs"]
+
+[categories.cache]
+glyph = "nf-md-cached"
+family = "redup"
+ext   = [".cache", ".tmp", ".temp", ".swp", ".swo", ".orig", ".rej", ".bak",
+         ".old", ".part", ".crdownload", ".download", ".pid", ".stackdump"]
+
+# ---------------------------------------------------------------------------
+#  Infrastruktur
+# ---------------------------------------------------------------------------
+
+[categories.container]
+glyph  = "nf-md-docker"
+family = "kode"
+names  = ["dockerfile", ".dockerignore", "docker-compose.yml", "docker-compose.yaml",
+          "compose.yml", "compose.yaml"]
+prefix = ["dockerfile", "docker-compose", "compose."]
+
+[categories.cloud]
+glyph = "nf-md-server_network"
+family = "kode"
+ext   = [".tf", ".tfvars", ".tfstate", ".hcl", ".bicep", ".pulumi", ".template"]
+names = ["terraform.tfstate", "chart.yaml", "values.yaml", ".helmignore"]
+
+[categories.vcs]
+glyph  = "nf-md-source_branch"
+family = "aman"
+ext    = [".patch", ".diff"]
+names  = [".gitignore", ".gitattributes", ".gitmodules", ".git-blame-ignore-revs", "codeowners"]
+
+[categories.test]
+glyph  = "nf-md-test_tube"
+family = "kerja"
+# Nama persis untuk berkas tunggal (`test.py` dkk). Suffix hanya yang
+# berpembatas (`.`, `_`) — "test.py" tanpa pembatas ikut menangkap
+# "latest.py" dan "protest.cpp". Dua pengecualian disengaja: `FooTests.cs`
+# dan `FooSpec.scala` adalah konvensi penamaan baku yang gugurnya lebih
+# mahal daripada kemungkinan salah tangkapnya.
+names  = ["test.py", "test.rs", "test.c", "test.cpp", "test.cs", "test.java"]
+suffix = ["_test.go", "_test.py", "_test.rs", "_test.c", "_test.cpp", "_test.cs",
+          "_test.java", ".test.ts", ".test.tsx", ".test.js", ".test.jsx",
+          ".spec.ts", ".spec.tsx", ".spec.js", ".spec.jsx", "_spec.rb",
+          "tests.cs", "spec.scala", ".bats", ".snap"]
+
+# ---------------------------------------------------------------------------
+#  Aset berat
+# ---------------------------------------------------------------------------
+
+[categories.model]
+glyph = "nf-md-cube_outline"
+family = "media"
+ext   = [".obj", ".fbx", ".gltf", ".glb", ".blend", ".stl", ".dae", ".usdz", ".usd",
+         ".3ds", ".max", ".c4d", ".ply", ".step", ".stp", ".iges", ".igs", ".sldprt",
+         ".sldasm", ".f3d", ".scad"]
+
+[categories.font]
+glyph = "nf-md-format_font"
+family = "media"
+ext   = [".ttf", ".otf", ".woff", ".woff2", ".eot", ".ttc", ".fnt", ".fon",
+         ".pfb", ".pfm", ".dfont", ".suit", ".bdf"]
+
+[categories.notebook]
+glyph = "nf-md-notebook_outline"
+family = "data"
+ext   = [".ipynb", ".rmd", ".qmd", ".nb"]
+
+# ---------------------------------------------------------------------------
+#  Kunci & sertifikat
+# ---------------------------------------------------------------------------
+
+[categories.key]
+glyph  = "nf-md-key_outline"
+family = "aman"
+ext    = [".pem", ".key", ".pub", ".ppk", ".asc", ".gpg", ".pgp", ".sig", ".signature", ".kdbx"]
+names  = ["id_rsa", "id_ed25519", "id_ecdsa", "authorized_keys", "known_hosts"]
+prefix = ["id_rsa", "id_ed25519", "id_ecdsa"]
+
+[categories.cert]
+glyph = "nf-md-certificate_outline"
+family = "aman"
+ext   = [".crt", ".cer", ".cert", ".der", ".p12", ".pfx", ".p7b", ".p7s", ".csr",
+         ".jks", ".keystore", ".truststore"]
+
+# ---------------------------------------------------------------------------
+#  Basis data
+# ---------------------------------------------------------------------------
+
+[categories.database]
+glyph = "nf-md-database_outline"
+family = "data"
+ext   = [".db", ".db3", ".sqlite", ".sqlite3", ".sql", ".psql", ".pgsql", ".mysql",
+         ".dump", ".mdb", ".accdb", ".frm", ".ibd", ".rdb", ".ldb", ".sst", ".wal", ".shm"]
