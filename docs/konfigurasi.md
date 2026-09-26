@@ -167,7 +167,7 @@ Checklist:
 | lapis | pemeriksaan |
 |---|---|
 | `build.rs` (saat compile) | glyph harus `nf-md-`/`nf-oct-` dan ada di `assets/glyphs.toml`; codepoint tidak boleh berupa karakter kontrol; peringatan untuk glyph yang tidak dipakai |
-| `cargo test` | batas 8 warna; konsistensi pemetaan; keluarga + bijeksi; ketetanggaan; batas `dim`; sanitasi output; parsing CLI; plus tes yang **sengaja melanggar aturan** untuk membuktikan setiap audit benar-benar melaporkan |
+| `cargo test` | batas 8 warna; konsistensi pemetaan; keluarga + bijeksi; ketetanggaan; batas `dim`; sanitasi output; parsing CLI; satu alfabet Latin untuk seluruh repo (`tests/hygiene.rs`); plus tes yang **sengaja melanggar aturan** untuk membuktikan setiap audit benar-benar melaporkan |
 | `ikon --audit` | seluruh pemeriksaan `audit()` dengan laporan; exit 1 bila ada temuan, exit 0 bila bersih |
 
 Contoh laporan bila ada masalah:
