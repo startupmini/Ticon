@@ -18,7 +18,7 @@ Pakai:
 from __future__ import annotations
 
 import argparse
-import io
+import hashlib
 import json
 import re
 import sys
@@ -30,6 +30,13 @@ UPSTREAM = (
     f"https://raw.githubusercontent.com/ryanoasis/nerd-fonts/"
     f"v{NERD_FONTS_VERSION}/glyphnames.json"
 )
+
+# SHA-256 payload untuk tag di UPSTREAM (534.871 byte). Tag yang ditimpa
+# upstream — atau jaringan yang dikompromi — bikin proses berhenti jauh
+# sebelum glyphs.toml ditulis. Perbarui hash ini hanya bersamaan dengan
+# kenaikan NERD_FONTS_VERSION, setelah memeriksa diff upstream.
+EXPECTED_SHA256 = "e2d10d23f5bff0bd6f0676e9b01d9789fcdc656de7b498a2955c27716ea4439c"
+TIMEOUT = 30
 
 ROOT = Path(__file__).resolve().parent.parent
 ICONS_TOML = ROOT / "icons.toml"
@@ -49,12 +56,27 @@ HEADER = """\
 """
 
 
+def verify(raw: bytes, asal: str) -> None:
+    """Tolak payload yang tidak persis seperti yang di-commit saat pin dibuat."""
+    aktual = hashlib.sha256(raw).hexdigest()
+    if aktual != EXPECTED_SHA256:
+        raise SystemExit(
+            f"SHA-256 {asal} tidak cocok — payload berbeda dari yang dipin:\n"
+            f"  diharapkan {EXPECTED_SHA256}\n"
+            f"  didapat    {aktual}\n"
+            f"(kalau cache lama, jalankan --refresh setelah memeriksa upstream)"
+        )
+
+
 def fetch(refresh: bool) -> dict:
     if CACHE.exists() and not refresh:
-        return json.load(io.open(CACHE, encoding="utf-8"))
+        raw = CACHE.read_bytes()
+        verify(raw, f"cache {CACHE.relative_to(ROOT)}")
+        return json.loads(raw.decode("utf-8"))
     print(f"mengunduh {UPSTREAM}", file=sys.stderr)
-    with urllib.request.urlopen(UPSTREAM) as response:
+    with urllib.request.urlopen(UPSTREAM, timeout=TIMEOUT) as response:
         raw = response.read()
+    verify(raw, "unduhan upstream")
     CACHE.parent.mkdir(parents=True, exist_ok=True)
     CACHE.write_bytes(raw)
     return json.loads(raw.decode("utf-8"))

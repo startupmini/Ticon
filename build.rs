@@ -21,6 +21,21 @@ use std::fs;
 /// "kebetulan ada".
 const ALLOWED_FAMILIES: &[&str] = &["nf-md-", "nf-oct-"];
 
+/// Karakter yang aman dicetak ke terminal. Duplikasi dari `src/render.rs`
+/// sebab build script adalah crate terpisah — sama seperti ALLOWED_FAMILIES.
+fn is_terminal_safe(c: char) -> bool {
+    !matches!(
+        c,
+        '\u{0}'..='\u{1f}'   // C0 termasuk ESC
+            | '\u{7f}'..='\u{9f}' // DEL + C1
+            | '\u{61c}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{202a}'..='\u{202e}' // pengendali arah bidi
+            | '\u{2066}'..='\u{2069}' // isolasi bidi
+    )
+}
+
 fn main() {
     println!("cargo:rerun-if-changed=icons.toml");
     println!("cargo:rerun-if-changed=assets/glyphs.toml");
@@ -29,14 +44,43 @@ fn main() {
     let glyphs_src =
         fs::read_to_string("assets/glyphs.toml").expect("tidak bisa membaca assets/glyphs.toml");
 
-    // Kunci di assets/glyphs.toml, mis: "nf-md-folder_outline" = 0xf0256
-    let available: BTreeSet<&str> = glyphs_src
-        .lines()
-        .filter_map(|line| line.trim().strip_prefix('"'))
-        .filter_map(|rest| rest.split('"').next())
-        .collect();
-
     let mut errors: Vec<String> = Vec::new();
+    let mut available: BTreeSet<&str> = BTreeSet::new();
+
+    // Sekaligus verifikasi tiap codepoint: glyph dicetak mentah oleh
+    // `--list`/`--gallery`, jadi karakter kontrol di tabel = injeksi terminal.
+    for line in glyphs_src.lines().map(str::trim) {
+        let Some(rest) = line.strip_prefix('"') else {
+            continue;
+        };
+        let Some(akhir) = rest.find('"') else {
+            continue;
+        };
+        let name = &rest[..akhir];
+        available.insert(name);
+
+        let Some(nilai) = rest[akhir + 1..].split('=').nth(1) else {
+            errors.push(format!(
+                "glyph '{name}' tidak punya nilai `= ...` yang terbaca"
+            ));
+            continue;
+        };
+        let Some(hex) = nilai.trim().strip_prefix("0x") else {
+            errors.push(format!("codepoint glyph '{name}' bukan heksadesimal `0x`"));
+            continue;
+        };
+        match u32::from_str_radix(hex, 16).ok().and_then(char::from_u32) {
+            Some(c) if is_terminal_safe(c) => {}
+            Some(_) => errors.push(format!(
+                "glyph '{name}' memakai codepoint 0x{hex} yang tidak aman dicetak \
+                 (karakter kontrol)"
+            )),
+            None => errors.push(format!(
+                "codepoint 0x{hex} untuk glyph '{name}' tidak terbaca sebagai karakter unicode"
+            )),
+        }
+    }
+
     let mut used: BTreeSet<String> = BTreeSet::new();
 
     for (idx, _) in icons.match_indices("\"nf-") {

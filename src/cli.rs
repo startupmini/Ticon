@@ -102,10 +102,15 @@ impl Mode {
     }
 }
 
-fn env_mode(name: &str) -> Option<Mode> {
-    env::var(name)
-        .ok()
-        .and_then(|value| Mode::parse(&value).ok())
+/// Nilai lingkungan yang salah tidak lagi ditelan diam-diam — sama seperti
+/// `--icons=<nilai>` yang keluar dengan pesan error.
+fn env_mode(name: &str) -> Result<Option<Mode>, String> {
+    match env::var(name) {
+        Ok(value) => Mode::parse(&value)
+            .map(Some)
+            .map_err(|error| format!("{name}: {error}")),
+        Err(_) => Ok(None),
+    }
 }
 
 pub fn parse(args: impl Iterator<Item = String>) -> Command {
@@ -210,12 +215,20 @@ pub fn parse(args: impl Iterator<Item = String>) -> Command {
         }
     }
 
-    let icon_mode = icon_mode
-        .or_else(|| env_mode("IKON_ICONS"))
-        .unwrap_or(Mode::Auto);
-    let color_mode = color_mode
-        .or_else(|| env_mode("IKON_COLOR"))
-        .unwrap_or(Mode::Auto);
+    let icon_mode = match icon_mode {
+        Some(mode) => mode,
+        None => match env_mode("IKON_ICONS") {
+            Ok(mode) => mode.unwrap_or(Mode::Auto),
+            Err(error) => return Command::Error(error),
+        },
+    };
+    let color_mode = match color_mode {
+        Some(mode) => mode,
+        None => match env_mode("IKON_COLOR") {
+            Ok(mode) => mode.unwrap_or(Mode::Auto),
+            Err(error) => return Command::Error(error),
+        },
+    };
 
     let stdout_is_tty = std::io::stdout().is_terminal();
     let no_color_env = env::var_os("NO_COLOR").is_some_and(|value| !value.is_empty());
@@ -238,5 +251,86 @@ pub fn parse(args: impl Iterator<Item = String>) -> Command {
         Command::Gallery(options)
     } else {
         Command::Dir(options)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    // `parse()` membaca IKON_ICONS/IKON_COLOR/NO_COLOR/CLICOLOR_FORCE di setiap
+    // pemanggilan, jadi semua tes mengunci satu mutex yang sama: tes yang
+    // mengubah lingkungan tidak boleh berlomba dengan tes lain.
+    static ENV: Mutex<()> = Mutex::new(());
+
+    fn parse_dalam_kunci(args: &[&str]) -> Command {
+        let _guard = ENV.lock().unwrap_or_else(|racun| racun.into_inner());
+        parse(args.iter().map(|arg| arg.to_string()))
+    }
+
+    fn opsi(command: &Command) -> &Options {
+        match command {
+            Command::Dir(options) | Command::Mapping(options) | Command::Gallery(options) => {
+                options
+            }
+            lain => panic!("bukan perintah daftar-berkas: {lain:?}"),
+        }
+    }
+
+    #[test]
+    fn jalur_posisi_dan_bendera_pendek() {
+        let command = parse_dalam_kunci(&["-a", "-1", "src", "."]);
+        let opsi = opsi(&command);
+        assert!(opsi.all && opsi.one_per_line);
+        assert_eq!(opsi.paths, vec![PathBuf::from("src"), PathBuf::from(".")]);
+    }
+
+    #[test]
+    fn nilai_bisa_inline_atau_argumen_berikutnya() {
+        let command = parse_dalam_kunci(&["--width=40", "--sort", "ext", "--color", "never"]);
+        let opsi = opsi(&command);
+        assert_eq!(opsi.width, Some(40));
+        assert_eq!(opsi.sort, Sort::Ext);
+        assert!(!opsi.color);
+    }
+
+    #[test]
+    fn dua_pemisah_menghentikan_parsing_opsi() {
+        let command = parse_dalam_kunci(&["--", "-a", "--width"]);
+        let opsi = opsi(&command);
+        assert!(!opsi.all, "-a setelah -- adalah jalur, bukan opsi");
+        assert_eq!(opsi.width, None);
+        assert_eq!(opsi.paths.len(), 2);
+    }
+
+    #[test]
+    fn opsi_atau_mode_tidak_dikenal_menghasilkan_error() {
+        assert!(matches!(
+            parse_dalam_kunci(&["--ngawur"]),
+            Command::Error(_)
+        ));
+        let Command::Error(pesan) = parse_dalam_kunci(&["--color", "tubeh"]) else {
+            panic!("mode tak dikenal harus jadi Command::Error");
+        };
+        assert!(pesan.contains("tidak dikenal"), "{pesan}");
+    }
+
+    #[test]
+    fn lingkungan_menimpa_bawaan_dan_menolak_nilai_salah() {
+        // Memakai `parse` langsung: mutex-nya sudah dipegang di sini.
+        let _guard = ENV.lock().unwrap_or_else(|racun| racun.into_inner());
+
+        env::set_var("IKON_ICONS", "always");
+        let command = parse(std::iter::empty());
+        assert!(opsi(&command).icons);
+        env::remove_var("IKON_ICONS");
+
+        env::set_var("IKON_COLOR", "bogus");
+        let Command::Error(pesan) = parse(std::iter::empty()) else {
+            panic!("IKON_COLOR tak dikenal harus jadi Command::Error");
+        };
+        assert!(pesan.contains("IKON_COLOR"), "{pesan}");
+        env::remove_var("IKON_COLOR");
     }
 }

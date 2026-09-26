@@ -28,7 +28,9 @@ icons.toml
 
 Nilai adalah kode ANSI SGR, bukan warna truecolor. Konsekuensinya: palet
 otomatis mengikuti theme terminal kamu — ganti theme, ikon ikut berubah.
-`NO_COLOR`, `CLICOLOR_FORCE`, dan `IKON_COLOR` tetap berlaku.
+`NO_COLOR`, `CLICOLOR_FORCE`, dan `IKON_COLOR` tetap berlaku. Nilainya harus
+angka: `load()` menolak apa pun yang bukan SGR numerik, karena kode itu masuk
+ke `\x1b[{kode}m` apa adanya.
 
 Palet dibatasi 8 entri. Test `palet_tidak_lebih_dari_delapan_warna` gagal
 begitu warna kesembilan ditambahkan, supaya keputusan itu selalu diambil sadar.
@@ -62,11 +64,19 @@ Yang ditegakkan (di `load()`, `cargo test`, dan `--audit`):
 
 * setiap kategori dan folder **wajib** menyebut `family` yang ada di tabel —
   selain itu muat file gagal dengan pesan yang menunjuk pelakunya;
+* **tidak ada karakter kontrol/bidi** di string mana pun (`names`, `prefix`,
+  `ext`, kunci folder, ...) — `load()` menolaknya, sebab satu karakter ESC di
+  nama sudah cukup untuk menyuntikkan sekuens ke terminal yang menjalankan
+  `--list`; nama berkas dari sistem berkas disanitasi saat dicetak;
 * **satu keluarga satu warna, satu warna satu keluarga** — dua keluarga tidak
   boleh berebut satu warna;
 * tidak ada warna palet yang menganggur dan tidak ada keluarga tanpa anggota;
 * dua aturan yang **bersebelahan di file** hanya boleh sewarna kalau satu
   keluarga (lihat [desain](desain.md#ketetanggaan));
+* dua kategori tidak boleh **berebut `prefix`/`suffix` yang sama** — pemenangnya
+  dipilih diam-diam oleh urutan alfabet, jadi audit yang menagih;
+* kunci `[dirs]` yang hanya beda kapitalisasi (`Src` vs `src`) adalah kunci
+  yang sama — `load()` menolak tabrakan seperti itu;
 * pemakaian `dim` maksimal `MAX_DIM_RULES` = 10 aturan.
 
 Ringkasan keluarga ini ikut tercetak oleh `ikon --list`, dan `ikon --gallery`
@@ -156,8 +166,8 @@ Checklist:
 
 | lapis | pemeriksaan |
 |---|---|
-| `build.rs` (saat compile) | glyph harus `nf-md-`/`nf-oct-` dan ada di `assets/glyphs.toml`; peringatan untuk glyph yang tidak dipakai |
-| `cargo test` (20 test) | batas 8 warna; konsistensi pemetaan; keluarga + bijeksi; ketetanggaan; batas `dim`; **2 test yang sengaja melanggar aturan** untuk membuktikan audit benar-benar melaporkan |
+| `build.rs` (saat compile) | glyph harus `nf-md-`/`nf-oct-` dan ada di `assets/glyphs.toml`; codepoint tidak boleh berupa karakter kontrol; peringatan untuk glyph yang tidak dipakai |
+| `cargo test` | batas 8 warna; konsistensi pemetaan; keluarga + bijeksi; ketetanggaan; batas `dim`; sanitasi output; parsing CLI; plus tes yang **sengaja melanggar aturan** untuk membuktikan setiap audit benar-benar melaporkan |
 | `ikon --audit` | seluruh pemeriksaan `audit()` dengan laporan; exit 1 bila ada temuan, exit 0 bila bersih |
 
 Contoh laporan bila ada masalah:

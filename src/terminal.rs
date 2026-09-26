@@ -19,35 +19,40 @@ pub fn width() -> Option<usize> {
         .or_else(platform_width)
 }
 
+// Struktur Win32 yang dipakai di bawah. Ditaruh di luar fungsi supaya
+// `#[cfg(test)]` bisa menguji ukurannya: layout yang salah = baca angka acak.
+
+#[cfg(windows)]
+#[repr(C)]
+#[derive(Default)]
+struct Coord {
+    x: i16,
+    y: i16,
+}
+
+#[cfg(windows)]
+#[repr(C)]
+#[derive(Default)]
+struct SmallRect {
+    left: i16,
+    top: i16,
+    right: i16,
+    bottom: i16,
+}
+
+#[cfg(windows)]
+#[repr(C)]
+#[derive(Default)]
+struct ScreenBufferInfo {
+    size: Coord,
+    cursor: Coord,
+    attributes: u16,
+    window: SmallRect,
+    maximum_window_size: Coord,
+}
+
 #[cfg(windows)]
 fn platform_width() -> Option<usize> {
-    // CONSOLE_SCREEN_BUFFER_INFO
-    #[repr(C)]
-    #[derive(Default)]
-    struct Coord {
-        x: i16,
-        y: i16,
-    }
-
-    #[repr(C)]
-    #[derive(Default)]
-    struct SmallRect {
-        left: i16,
-        top: i16,
-        right: i16,
-        bottom: i16,
-    }
-
-    #[repr(C)]
-    #[derive(Default)]
-    struct ScreenBufferInfo {
-        size: Coord,
-        cursor: Coord,
-        attributes: u16,
-        window: SmallRect,
-        maximum_window_size: Coord,
-    }
-
     const STD_OUTPUT_HANDLE: u32 = 0xffff_fff5;
 
     #[link(name = "kernel32")]
@@ -64,14 +69,18 @@ fn platform_width() -> Option<usize> {
     // keluaran standar tidak dimiliki dan tidak dibebaskan di sini.
     unsafe {
         let handle = GetStdHandle(STD_OUTPUT_HANDLE);
-        if handle.is_null() {
+        // Kegagalan Win32 mengembalikan INVALID_HANDLE_VALUE (-1), bukan NULL.
+        if handle.is_null() || handle as isize == -1 {
             return None;
         }
         let mut info = ScreenBufferInfo::default();
         if GetConsoleScreenBufferInfo(handle, &mut info) == 0 {
             return None;
         }
-        let columns = info.window.right - info.window.left + 1;
+        // Lebar dihitung dalam i32: `right - left + 1` bisa melewati batas i16
+        // pada buffer yang sangat lebar, dan overflow i16 akan panic di build
+        // debug sebelum sempat difilter.
+        let columns = i32::from(info.window.right) - i32::from(info.window.left) + 1;
         (columns > 0).then_some(columns as usize)
     }
 }
@@ -111,4 +120,23 @@ fn platform_width() -> Option<usize> {
 #[cfg(not(any(windows, unix)))]
 fn platform_width() -> Option<usize> {
     None
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::*;
+    use std::mem::{align_of, size_of};
+
+    /// `GetConsoleScreenBufferInfo` menulis ke struct ini; urutan atau lebar
+    /// field yang salah = membaca angka acak tanpa error kompilasi. Tes ini
+    /// yang menjaganya. Hanya dijalankan di Windows — dan itulah sebabnya CI
+    /// sekarang memakai matrix ubuntu + windows.
+    #[test]
+    fn layout_screen_buffer_info_sesuai_abi_win32() {
+        assert_eq!(size_of::<Coord>(), 4);
+        assert_eq!(size_of::<SmallRect>(), 8);
+        // 2 COORD (8) + WORD (2) + SMALL_RECT (8) + COORD (4) = 22
+        assert_eq!(size_of::<ScreenBufferInfo>(), 22);
+        assert_eq!(align_of::<ScreenBufferInfo>(), 2);
+    }
 }

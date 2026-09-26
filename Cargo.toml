@@ -2,6 +2,15 @@
 name = "ikon"
 version = "0.1.0"
 edition = "2021"
+# MSRV 1.85 — bukan karena kode kita butuh itu (`std::iter::repeat_n` sudah
+# cukup 1.82), tapi karena `indexmap` (lewat `toml_edit`) memakai manifest
+# edition2024 yang butuh Cargo 1.85. Naik hanya setelah dependensi ikut naik;
+# job "msrv" di CI menjaga angka ini tetap jujur.
+rust-version = "1.85"
+# Bukan paket yang dikirim ke crates.io: nama "ikon" sudah dipakai crate lain,
+# dan aplikasi ini memang binary-first. Pasang dari GitHub:
+#   cargo install --git https://github.com/startupmini/Ticon
+publish = false
 description = "Ikon minimalis dan flat untuk terminal"
 license = "MIT"
 repository = "https://github.com/startupmini/Ticon"

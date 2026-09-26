@@ -2,7 +2,7 @@
 
 README berisi *apa* yang ditegakkan; halaman ini berisi *mengapa* begitu.
 Angka-angkanya: 38 kategori + 26 folder well-known = 64 aturan, 461 ekstensi,
-55 glyph, 8 warna, 20 test.
+55 glyph, 8 warna.
 
 ## Flat: satu keluarga glyph
 

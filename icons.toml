@@ -24,14 +24,16 @@
 #      keluarga — jadi "siapa yang berbagi warna dengan siapa" terbaca dari
 #      satu tabel, bukan ditebak dari 64 baris. Yang menegakkan: `cargo test`
 #      dan `ikon --audit` (keluarga tak dikenal, dua keluarga berebut warna,
-#      warna palet menganggur, tetangga beda keluarga yang sewarna, serta
-#      pemakaian `dim` yang melampaui MAX_DIM_RULES).
+#      warna palet menganggur, tetangga beda keluarga yang sewarna, awalan atau
+#      akhiran yang diklaim dua kategori, serta pemakaian `dim` yang melampaui
+#      MAX_DIM_RULES). `load()` juga menolak karakter kontrol/bidi dan kode
+#      palet yang bukan angka.
 #
 #  Urutan resolusi, dari yang paling spesifik:
 #    1. nama folder well-known (bagian [dirs])
 #    2. nama file well-known   (field `names`)
-#    3. awalan nama            (field `prefix`)
-#    4. akhiran nama           (field `suffix`)
+#    3. akhiran nama           (field `suffix`)
+#    4. awalan nama            (field `prefix`)
 #    5. ekstensi terpanjang    (field `ext`, mis. ".tar.gz" menang atas ".gz")
 #    6. kategori bawaan: `folder` untuk folder, `file` untuk file
 #
@@ -377,10 +379,16 @@ names  = [".gitignore", ".gitattributes", ".gitmodules", ".git-blame-ignore-revs
 [categories.test]
 glyph  = "nf-md-test_tube"
 family = "kerja"
-suffix = ["_test.go", ".test.ts", ".test.tsx", ".test.js", ".test.jsx", ".spec.ts",
-          ".spec.tsx", ".spec.js", ".spec.jsx", "_spec.rb", "_test.py", "test.py",
-          "test.rs", "_test.rs", "test.c", "test.cpp", "test.cs", "tests.cs",
-          "test.java", "spec.scala", ".bats", ".snap"]
+# Nama persis untuk berkas tunggal (`test.py` dkk). Suffix hanya yang
+# berpembatas (`.`, `_`) — "test.py" tanpa pembatas ikut menangkap
+# "latest.py" dan "protest.cpp". Dua pengecualian disengaja: `FooTests.cs`
+# dan `FooSpec.scala` adalah konvensi penamaan baku yang gugurnya lebih
+# mahal daripada kemungkinan salah tangkapnya.
+names  = ["test.py", "test.rs", "test.c", "test.cpp", "test.cs", "test.java"]
+suffix = ["_test.go", "_test.py", "_test.rs", "_test.c", "_test.cpp", "_test.cs",
+          "_test.java", ".test.ts", ".test.tsx", ".test.js", ".test.jsx",
+          ".spec.ts", ".spec.tsx", ".spec.js", ".spec.jsx", "_spec.rb",
+          "tests.cs", "spec.scala", ".bats", ".snap"]
 
 # ---------------------------------------------------------------------------
 #  Aset berat

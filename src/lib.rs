@@ -30,6 +30,7 @@ use cli::{Command, Options, Sort};
 use glyph::Glyphs;
 use mapping::Rules;
 use render::Item;
+use unicode_width::UnicodeWidthStr;
 
 pub fn run() -> ExitCode {
     match execute() {
@@ -62,12 +63,14 @@ fn execute() -> Result<ExitCode, String> {
             audit(&rules, &glyphs)
         }
         Command::Mapping(options) => {
+            cek_tanpa_path("--list", &options)?;
             let rules = Rules::load()?;
             let glyphs = Glyphs::bundled();
             print_mapping(&rules, &glyphs, &options);
             Ok(ExitCode::SUCCESS)
         }
         Command::Gallery(options) => {
+            cek_tanpa_path("--gallery", &options)?;
             let rules = Rules::load()?;
             let glyphs = Glyphs::bundled();
             print_gallery(&rules, &glyphs, &options);
@@ -156,6 +159,7 @@ fn list(rules: &Rules, glyphs: &Glyphs, options: &Options) -> Result<ExitCode, S
                 let _ = writeln!(out);
             }
             let header = format!("{}:", path.display());
+            let header = render::sanitize(&header);
             let _ = writeln!(
                 out,
                 "{}",
@@ -257,15 +261,17 @@ fn render_entry(rules: &Rules, glyphs: &Glyphs, options: &Options, entry: &Entry
 
     // Hanya ikon yang diberi warna. Nama dibiarkan memakai warna teks bawaan
     // terminal supaya daftarnya tetap tenang — penanda jenis berkas sudah
-    // dibawa oleh warna ikon.
-    plain.push_str(&entry.name);
+    // dibawa oleh warna ikon. Nama berkas dari luar disanitasi dulu: satu
+    // karakter ESC sudah cukup untuk menyuntikkan sekuens ke terminal.
+    let name = render::sanitize(&entry.name);
+    plain.push_str(&name);
     match entry.link_target {
-        Some(_) => painted.push_str(&render::paint(rules, options.color, "cyan", &entry.name)),
-        None => painted.push_str(&entry.name),
+        Some(_) => painted.push_str(&render::paint(rules, options.color, "cyan", &name)),
+        None => painted.push_str(&name),
     }
 
     if let Some(target) = &entry.link_target {
-        let suffix = format!(" → {target}");
+        let suffix = format!(" → {}", render::sanitize(target));
         plain.push_str(&suffix);
         painted.push_str(&render::paint(rules, options.color, "dim", &suffix));
     }
@@ -317,8 +323,16 @@ fn print_gallery(rules: &Rules, glyphs: &Glyphs, options: &Options) {
         rows.push((example, label, resolved.glyph, resolved.color));
     }
 
-    let example_width = rows.iter().map(|row| row.0.len()).max().unwrap_or(0);
-    let label_width = rows.iter().map(|row| row.1.len()).max().unwrap_or(0);
+    let example_width = rows
+        .iter()
+        .map(|row| UnicodeWidthStr::width(row.0.as_str()))
+        .max()
+        .unwrap_or(0);
+    let label_width = rows
+        .iter()
+        .map(|row| UnicodeWidthStr::width(row.1.as_str()))
+        .max()
+        .unwrap_or(0);
 
     println!(
         "galeri ikon ({} aturan, {} glyph tertanam):",
@@ -332,9 +346,11 @@ fn print_gallery(rules: &Rules, glyphs: &Glyphs, options: &Options) {
             .map(|value| value.to_string())
             .unwrap_or_else(|| "?".to_string());
         let icon = render::paint(rules, options.color, color, &character);
-        let name = render::paint(rules, options.color, color, example);
+        // Pad dulu, baru warnai — kalau escape ANSI yang ikut dihitung saat
+        // padding, kolom label lari 9 karakter saat warna aktif.
+        let name = render::paint(rules, options.color, color, &pad(example, example_width));
         let swatch = render::paint(rules, options.color, color, color);
-        println!("  {icon}  {name:<example_width$}  {label:<label_width$}  {swatch}");
+        println!("  {icon}  {name}  {label:<label_width$}  {swatch}");
     }
 }
 
@@ -342,7 +358,20 @@ fn print_gallery(rules: &Rules, glyphs: &Glyphs, options: &Options) {
 /// aturannya menjorok di bawahnya. Sengaja dijaga agar tetap bisa di-grep —
 /// `ikon --list | grep language_go` harus tetap berguna.
 fn print_mapping(rules: &Rules, glyphs: &Glyphs, options: &Options) {
-    let name_width = rules.categories.keys().map(String::len).max().unwrap_or(0);
+    // Lebar kolom nama ikut menghitung folder khusus dengan awalan "/";
+    // tanpa ini baris seperti `/node_modules` bergeser melewati kolom glyph.
+    let name_width = rules
+        .categories
+        .keys()
+        .map(|name| UnicodeWidthStr::width(name.as_str()))
+        .chain(
+            rules
+                .dirs
+                .keys()
+                .map(|name| 1 + UnicodeWidthStr::width(name.as_str())),
+        )
+        .max()
+        .unwrap_or(0);
     let glyph_width = rules
         .categories
         .values()
@@ -446,7 +475,9 @@ fn wrapped(label: &str, values: &[String], width: usize) {
     for value in values {
         if line.is_empty() {
             line = value.clone();
-        } else if line.len() + 1 + value.len() <= available {
+        } else if UnicodeWidthStr::width(line.as_str()) + 1 + UnicodeWidthStr::width(value.as_str())
+            <= available
+        {
             line.push(' ');
             line.push_str(value);
         } else {
@@ -460,6 +491,14 @@ fn wrapped(label: &str, values: &[String], width: usize) {
         let lead = if first { &prefix } else { &continuation };
         println!("{lead}{line}");
     }
+}
+
+/// Padding berdasarkan lebar tampilan. `{:<w$}` menghitung char dan
+/// `String::len` menghitung byte — keduanya salah untuk nama non-ASCII.
+fn pad(text: &str, width: usize) -> String {
+    let mut padded = String::from(text);
+    padded.push_str(&" ".repeat(width.saturating_sub(UnicodeWidthStr::width(text))));
+    padded
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -480,7 +519,24 @@ fn print_category_row(
     let icon = render::paint(rules, options.color, color, &glyph);
     let label = render::paint(rules, options.color, color, color);
 
-    println!("  {icon} {name:<name_width$}  {glyph_name:<glyph_width$}  {label}");
+    println!(
+        "  {icon} {}  {glyph_name:<glyph_width$}  {label}",
+        pad(name, name_width)
+    );
+}
+
+/// `--list` dan `--gallery` bekerja pada pemetaan, bukan pada isi folder.
+/// Path yang lewat sebelumnya diabaikan diam-diam; sekarang ditolak, karena
+/// minta tabel sambil menyebut folder adalah harapan yang keliru.
+fn cek_tanpa_path(flag: &str, options: &Options) -> Result<(), String> {
+    match options.paths.first() {
+        Some(path) => Err(format!(
+            "`{flag}` tidak menerima path, tapi '{}' diberikan — tanpa path \
+             ia bekerja pada seluruh tabel pemetaan",
+            path.display()
+        )),
+        None => Ok(()),
+    }
 }
 
 fn audit(rules: &Rules, glyphs: &Glyphs) -> Result<ExitCode, String> {
@@ -492,16 +548,7 @@ fn audit(rules: &Rules, glyphs: &Glyphs) -> Result<ExitCode, String> {
             .values()
             .map(|category| category.ext.len())
             .sum();
-        let dim = rules
-            .categories
-            .values()
-            .filter(|category| rules.color_of(&category.family) == "dim")
-            .count()
-            + rules
-                .dirs
-                .values()
-                .filter(|rule| rules.color_of(&rule.family) == "dim")
-                .count();
+        let dim = rules.dim_rules();
         println!(
             "pemetaan bersih: {} kategori, {} folder khusus, {} ekstensi, {} glyph, {} keluarga warna",
             rules.categories.len(),
@@ -524,4 +571,101 @@ fn audit(rules: &Rules, glyphs: &Glyphs) -> Result<ExitCode, String> {
         let _ = writeln!(report, "  - {finding}");
     }
     Err(report.trim_end().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn options() -> Options {
+        Options {
+            paths: Vec::new(),
+            all: true,
+            one_per_line: true,
+            icons: true,
+            color: true,
+            sort: Sort::Name,
+            width: None,
+        }
+    }
+
+    /// Tanpa escape warna milik `paint()` — untuk memeriksa isi data apa adanya.
+    fn options_plain() -> Options {
+        Options {
+            color: false,
+            ..options()
+        }
+    }
+
+    /// Injeksi terminal hanya bisa dibuktikan di tempat komposisinya: nama
+    /// berkas dari luar tidak boleh keluar mentah, baik RLO maupun ESC, dan
+    /// lebar kolom harus diukur dari teks yang sudah disanitasi.
+    ///
+    /// Warna dimatikan di sini: `paint()` memang menulis escape miliknya
+    /// sendiri, jadi yang diperiksa adalah isi datanya, bukan string ansinya.
+    ///
+    /// Uji e2e di `tests/e2e.rs` menutup kasus RLO lewat berkas sungguhan;
+    /// ESC tidak bisa dibuat sebagai nama berkas di Windows, jadi diuji di sini.
+    #[test]
+    fn nama_berkarakter_kontrol_disanitasi_saat_dicetak() {
+        let rules = Rules::load().expect("icons.toml harus bisa dibaca");
+        let glyphs = Glyphs::bundled();
+        let entry = Entry {
+            name: "invoice\u{202e}fdp.exe\u{1b}[2J".to_string(),
+            is_dir: false,
+            link_target: None,
+            size: 0,
+            modified: None,
+        };
+        let opsi = options_plain();
+
+        let item = render_entry(&rules, &glyphs, &opsi, &entry);
+
+        assert!(
+            !item.painted.contains('\u{1b}') && !item.painted.contains('\u{202e}'),
+            "karakter kontrol tidak boleh keluar mentah: {:?}",
+            item.painted
+        );
+        assert!(
+            item.painted.contains("\\u{202e}") && item.painted.contains("\\u{1b}"),
+            "harus muncul sebagai representasi aman: {:?}",
+            item.painted
+        );
+        let nama_aman = render::sanitize(&entry.name);
+        let lebar = UnicodeWidthStr::width(nama_aman.as_ref());
+        assert_eq!(item.width, 2 + lebar, "lebar diukur dari teks aman");
+    }
+
+    /// Target symlink juga berasal dari luar, jadi ikut disanitasi.
+    #[test]
+    fn target_symlink_karakter_kontrol_disanitasi() {
+        let rules = Rules::load().expect("icons.toml harus bisa dibaca");
+        let glyphs = Glyphs::bundled();
+        let entry = Entry {
+            name: "tautan".to_string(),
+            is_dir: false,
+            link_target: Some("target\u{1b}[2Jevil".to_string()),
+            size: 0,
+            modified: None,
+        };
+        let opsi = options_plain();
+
+        let item = render_entry(&rules, &glyphs, &opsi, &entry);
+
+        assert!(!item.painted.contains('\u{1b}'), "{:?}", item.painted);
+        assert!(item.painted.contains("\\u{1b}"), "{:?}", item.painted);
+    }
+
+    #[test]
+    fn list_dan_gallery_menolak_path() {
+        let mut opsi = options();
+        opsi.paths = vec![PathBuf::from("src")];
+        assert!(cek_tanpa_path("--list", &opsi).is_err());
+        assert!(cek_tanpa_path("--gallery", &opsi).is_err());
+        let pesan = cek_tanpa_path("--list", &opsi).unwrap_err();
+        assert!(pesan.contains("--list") && pesan.contains("src"), "{pesan}");
+
+        opsi.paths.clear();
+        assert!(cek_tanpa_path("--list", &opsi).is_ok());
+    }
 }

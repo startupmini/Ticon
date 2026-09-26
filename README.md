@@ -37,6 +37,30 @@ penjaganya sendiri:
 * [`docs/desain.md`](docs/desain.md) — mengapa desainnya begini: delapan warna,
   satu keluarga satu warna, batas `dim`, serta aturan ketetanggaan.
 
+## Pasang
+
+Proyek ini dikirim lewat GitHub, bukan crates.io — nama `ikon` sudah dipakai
+crate lain di sana, dan aplikasi ini memang tidak dimaksudkan menjadi pustaka
+yang diimpor.
+
+```bash
+# dari tag rilis
+cargo install --git https://github.com/startupmini/Ticon --tag v0.1.0
+
+# atau langsung dari branch utama
+cargo install --git https://github.com/startupmini/Ticon
+```
+
+Trial tanpa memasang sama sekali:
+
+```bash
+cargo run --quiet -- <args>
+```
+
+Kebutuhan minimum: Rust 1.85 — angka ini berasal dari dependensi (bukan dari
+kode `ikon` sendiri) dan dijaga job `msrv` di CI. Diuji di Linux dan Windows;
+lebar terminal di macOS/Linux diambil lewat `ioctl`.
+
 ## Pakai
 
 ```
@@ -57,8 +81,8 @@ ikon --audit              # periksa konsistensi icons.toml
 | `--color <mode>` | `auto`, `always`, `never` (bawaan `auto`) |
 | `--sort <kunci>` | `name`, `ext`, `size`, `time` (bawaan `name`) |
 | `--width <kolom>` | paksa lebar tata letak |
-| `--list` | cetak tabel pemetaan |
-| `--gallery` | cetak contoh ikon dari tiap aturan |
+| `--list` | cetak tabel pemetaan (tanpa path) |
+| `--gallery` | cetak contoh ikon dari tiap aturan (tanpa path) |
 | `--audit` | periksa konsistensi pemetaan |
 
 Alias yang didukung: `--colour` (sama dengan `--color`), `--no-color` (sama
@@ -131,7 +155,7 @@ MIT — berkas [LICENSE](LICENSE). Data glyph berasal dari Nerd Fonts (MIT).
 ## Pengembangan
 
 ```bash
-cargo test                              # termasuk audit: 20 test
+cargo test                              # unit + integrasi + audit pemetaan
 cargo run -- --audit
 python tools/gen-glyphs.py --refresh    # regenerasi tabel glyph
 ```

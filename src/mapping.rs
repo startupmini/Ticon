@@ -10,6 +10,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::Deserialize;
 
 use crate::glyph::Glyphs;
+use crate::render;
 
 /// Keluarga glyph yang boleh dipakai. Alasannya ada di `icons.toml` dan
 /// `build.rs`: konsistensi visual.
@@ -108,14 +109,49 @@ pub struct Rules {
 
 impl Rules {
     pub fn load() -> Result<Self, String> {
-        let file: IconsFile = toml::from_str(ICONS_TOML)
-            .map_err(|error| format!("icons.toml tidak bisa dibaca: {error}"))?;
+        Self::load_from(ICONS_TOML)
+    }
+
+    /// Memuat dari teks mana pun. `load()` memakai `ICONS_TOML`; tes memakai
+    /// potongan buatan untuk membuktikan tiap penolakan benar-benar bekerja.
+    fn load_from(teks: &str) -> Result<Self, String> {
+        let file: IconsFile = toml::from_str(teks).map_err(|error| {
+            // Pesan parse bisa menyertakan cuplikan baris — jangan sampai
+            // membawa karakter kontrol mentah ke terminal.
+            format!(
+                "icons.toml tidak bisa dibaca: {}",
+                render::sanitize(&error.to_string())
+            )
+        })?;
 
         if file.palette.is_empty() {
             return Err("palet di icons.toml kosong".to_string());
         }
         if file.families.is_empty() {
             return Err("tabel [families] di icons.toml kosong".to_string());
+        }
+
+        // Karakter kontrol/bidi di string mana pun = jebakan terminal bagi
+        // siapa pun yang menjalankan `--list`/`--gallery`. Ditolak di sini,
+        // sebelum pesan galat lain sempat menuliskan stringnya mentah — satu
+        // gerbang ini menutup `load()`, `cargo test`, dan `--audit` sekaligus.
+        let kontrol = karakter_terlarang(&file);
+        if !kontrol.is_empty() {
+            return Err(format!(
+                "icons.toml ditolak, memuat karakter terlarang:\n  - {}",
+                kontrol.join("\n  - ")
+            ));
+        }
+
+        // Kode palet masuk ke `\x1b[{kode}m` apa adanya, jadi harus angka;
+        // nama kuncinya sudah aman di langkah sebelumnya.
+        for (nama, kode) in &file.palette {
+            if kode.parse::<u16>().is_err() {
+                return Err(format!(
+                    "kode palet '{nama}' = '{}' bukan angka SGR yang sah",
+                    render::sanitize(kode)
+                ));
+            }
         }
 
         for (family, color) in &file.families {
@@ -142,15 +178,25 @@ impl Rules {
             }
         }
 
+        // `resolve_dir` selalu mencari dengan huruf kecil, jadi "Src" dan
+        // "src" adalah kunci yang sama — `collect` akan menimpa salah satunya
+        // tanpa suara. Tabrakan seperti itu ditolak di sini.
+        let mut dirs = BTreeMap::new();
+        for (name, rule) in file.dirs {
+            let key = name.to_lowercase();
+            if dirs.insert(key, rule).is_some() {
+                return Err(format!(
+                    "folder '{name}' di [dirs] bentrok dengan folder lain \
+                     setelah huruf besar/kecil diseragamkan"
+                ));
+            }
+        }
+
         let mut rules = Self {
             palette: file.palette,
             families: file.families,
             categories: file.categories,
-            dirs: file
-                .dirs
-                .into_iter()
-                .map(|(name, rule)| (name.to_lowercase(), rule))
-                .collect(),
+            dirs,
             by_name: BTreeMap::new(),
             by_ext: BTreeMap::new(),
             prefixes: Vec::new(),
@@ -294,6 +340,22 @@ impl Rules {
             .unwrap_or("dim")
     }
 
+    /// Jumlah aturan (kategori + folder) yang memakai warna `dim`. Satu
+    /// sumber angka ini dipakai audit, tes, dan angka yang dicetak
+    /// `ikon --audit` — supaya yang dicek dan yang dilaporkan tak bisa
+    /// berbeda karena salinan yang lupa diperbarui.
+    pub fn dim_rules(&self) -> usize {
+        self.categories
+            .values()
+            .filter(|category| self.color_of(&category.family) == "dim")
+            .count()
+            + self
+                .dirs
+                .values()
+                .filter(|rule| self.color_of(&rule.family) == "dim")
+                .count()
+    }
+
     /// Pemeriksaan konsistensi. Dipakai oleh `cargo test` DAN oleh
     /// `ikon --audit`, jadi masalah pemetaan ketahuan sebelum dirilis, bukan
     /// setelah ada yang sadar ikonnya kosong.
@@ -367,6 +429,31 @@ impl Rules {
             used.insert(rule.glyph.as_str());
         }
 
+        // --- Awalan/akhiran yang diklaim dua kategori --------------------------
+        // Pemenangnya dipilih `build_index` diam-diam (urut alfabet kategori),
+        // jadi audit yang harus menagih: dua kategori berebut satu pola berarti
+        // keputusannya kebetulan, bukan sadar.
+        let mut awalan: BTreeMap<String, String> = BTreeMap::new();
+        for (name, category) in &self.categories {
+            for pattern in &category.prefix {
+                if let Some(other) = awalan.insert(pattern.to_lowercase(), name.clone()) {
+                    findings.push(format!(
+                        "awalan '{pattern}' diklaim kategori '{other}' dan '{name}'"
+                    ));
+                }
+            }
+        }
+        let mut akhiran: BTreeMap<String, String> = BTreeMap::new();
+        for (name, category) in &self.categories {
+            for pattern in &category.suffix {
+                if let Some(other) = akhiran.insert(pattern.to_lowercase(), name.clone()) {
+                    findings.push(format!(
+                        "akhiran '{pattern}' diklaim kategori '{other}' dan '{name}'"
+                    ));
+                }
+            }
+        }
+
         // --- Keluarga warna ---------------------------------------------------
         // Satu keluarga satu warna: kalau dua keluarga berebut satu warna,
         // "siapa yang berbagi warna" tidak lagi bisa dibaca dari nama keluarga.
@@ -409,16 +496,7 @@ impl Rules {
         }
 
         // --- Batas dim ----------------------------------------------------------
-        let dim = self
-            .categories
-            .values()
-            .filter(|category| self.color_of(&category.family) == "dim")
-            .count()
-            + self
-                .dirs
-                .values()
-                .filter(|rule| self.color_of(&rule.family) == "dim")
-                .count();
+        let dim = self.dim_rules();
         if dim > MAX_DIM_RULES {
             findings.push(format!(
                 "pemakaian 'dim' mencapai {dim} aturan, batasnya {MAX_DIM_RULES} — \
@@ -439,6 +517,52 @@ impl Rules {
 
 fn override_for(category: &Category, key: &str) -> Option<String> {
     category.by_ext.get(key).cloned()
+}
+
+/// Semua string `icons.toml` yang bisa tercetak ke terminal diperiksa satu per
+/// satu; hasilnya daftar temuan, pemanggil yang menyusun pesan. Nama bagian
+/// ikut disanitasi supaya pesan galat sendiri tidak jadi serangan.
+fn karakter_terlarang(file: &IconsFile) -> Vec<String> {
+    let mut temuan: Vec<String> = Vec::new();
+    let mut periksa = |apa: &str, nilai: &str| {
+        if !render::is_terminal_safe(nilai) {
+            temuan.push(format!(
+                "{} memuat karakter kontrol/bidi: {}",
+                render::sanitize(apa),
+                render::sanitize(nilai)
+            ));
+        }
+    };
+    for (nama, kode) in &file.palette {
+        periksa("nama palet", nama);
+        periksa("kode palet", kode);
+    }
+    for (nama, warna) in &file.families {
+        periksa("nama keluarga", nama);
+        periksa("warna keluarga", warna);
+    }
+    for (nama, kategori) in &file.categories {
+        periksa("nama kategori", nama);
+        periksa(&format!("glyph kategori '{nama}'"), &kategori.glyph);
+        for nilai in kategori
+            .ext
+            .iter()
+            .chain(&kategori.names)
+            .chain(&kategori.prefix)
+            .chain(&kategori.suffix)
+        {
+            periksa(&format!("aturan kategori '{nama}'"), nilai);
+        }
+        for (ekstensi, glyph) in &kategori.by_ext {
+            periksa(&format!("kunci by_ext kategori '{nama}'"), ekstensi);
+            periksa(&format!("glyph by_ext kategori '{nama}'"), glyph);
+        }
+    }
+    for (nama, aturan) in &file.dirs {
+        periksa("nama folder", nama);
+        periksa(&format!("glyph folder '{nama}'"), &aturan.glyph);
+    }
+    temuan
 }
 
 fn sort_longest_first(rules: &mut [(String, Resolved)]) {
@@ -481,6 +605,15 @@ fn urutan_dari_teks(teks: &str) -> Vec<(String, String)> {
 
     for baris in teks.lines() {
         let baris = baris.trim();
+        // Komentar tidak ikut diparse — termasuk `family =` yang tertulis di
+        // dalamnya, supaya parser urutan tidak salah baca di masa depan.
+        if baris.starts_with('#') {
+            continue;
+        }
+        let baris = match baris.find('#') {
+            Some(pos) => baris[..pos].trim_end(),
+            None => baris,
+        };
         if baris == "[dirs]" {
             seksi = "dirs";
             continue;
@@ -711,16 +844,7 @@ mod tests {
     #[test]
     fn pemakaian_dim_terbatas() {
         let rules = rules();
-        let dim = rules
-            .categories
-            .values()
-            .filter(|k| rules.color_of(&k.family) == "dim")
-            .count()
-            + rules
-                .dirs
-                .values()
-                .filter(|r| rules.color_of(&r.family) == "dim")
-                .count();
+        let dim = rules.dim_rules();
         assert!(
             dim <= MAX_DIM_RULES,
             "pemakaian 'dim' mencapai {dim} aturan, batas {MAX_DIM_RULES}"
@@ -769,5 +893,133 @@ mod tests {
             findings.iter().any(|f| f.contains("pemakaian 'dim'")),
             "pemakaian dim berlebih tidak terdeteksi: {findings:?}"
         );
+    }
+
+    /// Pola yang diklaim dua kategori dipilih pemenangnya diam-diam oleh
+    /// `build_index`; tes ini menaruh `readme` (milik kategori lain) dan
+    /// `_test.go` (milik `test`) di dalam `license` dan menuntut audit bicara.
+    #[test]
+    fn audit_mendeteksi_awalan_dan_akhiran_berebut() {
+        let mut rules = rules();
+        let license = rules
+            .categories
+            .get_mut("license")
+            .expect("kategori license harus ada");
+        license.prefix.push("readme".to_string());
+        license.suffix.push("_test.go".to_string());
+
+        let findings = rules.audit(&Glyphs::bundled());
+
+        assert!(
+            findings.iter().any(|f| f.contains("awalan 'readme'")),
+            "awalan yang diklaim dua kategori tidak terdeteksi: {findings:?}"
+        );
+        assert!(
+            findings.iter().any(|f| f.contains("akhiran '_test.go'")),
+            "akhiran yang diklaim dua kategori tidak terdeteksi: {findings:?}"
+        );
+    }
+
+    /// Fixture minimal yang sah — cukup untuk lolos semua cek struktural
+    /// `load()`, supaya tes di bawah ini menyasar satu penolakan tertentu.
+    fn teks_minimal() -> String {
+        [
+            "[palette]",
+            "white = \"37\"",
+            "",
+            "[families]",
+            "netral = \"white\"",
+            "",
+            "[categories.folder]",
+            "glyph = \"nf-md-folder_outline\"",
+            "family = \"netral\"",
+            "",
+            "[categories.file]",
+            "glyph = \"nf-md-file_outline\"",
+            "family = \"netral\"",
+        ]
+        .join("\n")
+    }
+
+    /// Gerbang F-001: `\u001b` di teks TOML menjadi karakter ESC sesungguhnya
+    /// setelah di-parse — persis yang dulu lolos sampai ke stdout `--list`.
+    #[test]
+    fn load_menolak_karakter_kontrol() {
+        let mut teks = teks_minimal();
+        teks.push_str("\n\n[categories.kotor]\n");
+        teks.push_str("glyph = \"nf-md-cached\"\n");
+        teks.push_str("family = \"netral\"\n");
+        teks.push_str("names = [\"\\u001b[31mPWN\\u001b[0m\"]\n");
+
+        let Err(pesan) = Rules::load_from(&teks) else {
+            panic!("load() menerima karakter kontrol/bidi");
+        };
+        assert!(pesan.contains("karakter kontrol"), "{pesan}");
+        assert!(
+            pesan.contains("\\u{1b}"),
+            "pesan harus memakai representasi aman, bukan ESC mentah: {pesan}"
+        );
+        assert!(
+            !pesan.contains('\u{1b}'),
+            "pesan galat sendiri tidak boleh memuat ESC mentah"
+        );
+    }
+
+    /// `resolve_dir` mencari dengan huruf kecil, jadi "src" dan "SRC" adalah
+    /// kunci yang sama — tanpa penolakan ini, satu aturan ditimpa tanpa suara.
+    #[test]
+    fn load_menolak_folder_bedakapitalisasi() {
+        let mut teks = teks_minimal();
+        teks.push_str("\n\n[dirs]\n");
+        teks.push_str("src = { glyph = \"nf-md-cached\", family = \"netral\" }\n");
+        teks.push_str("SRC = { glyph = \"nf-md-cached\", family = \"netral\" }\n");
+
+        let Err(pesan) = Rules::load_from(&teks) else {
+            panic!("load() menerima dua folder yang beda kapitalisasi");
+        };
+        assert!(pesan.contains("bentrok"), "{pesan}");
+    }
+
+    /// Kode palet masuk ke `\x1b[{kode}m` apa adanya, jadi bentuknya divalidasi
+    /// di batas muat — angka SGR, bukan string bebas.
+    #[test]
+    fn load_menolak_kode_palet_bukan_angka() {
+        let teks = teks_minimal().replace("white = \"37\"", "white = \"3x\"");
+        let Err(pesan) = Rules::load_from(&teks) else {
+            panic!("load() menerima kode palet yang bukan angka SGR");
+        };
+        assert!(pesan.contains("SGR"), "{pesan}");
+    }
+
+    /// Akhiran tanpa pembatas ("test.py") dulu ikut menangkap "latest.py" dan
+    /// "protest.cpp". Tes ini mengunci keputusannya: akhiran hanya yang
+    /// berpembatas, nama literal hidup di `names`, dan konvensi baku
+    /// (`FooTests.cs`, `FooSpec.scala`) tetap tertangkap.
+    #[test]
+    fn akhiran_tanpa_pembatas_jangan_menangkap_berkas_biasa() {
+        // False positive yang dulu terjadi:
+        assert_eq!(glyph("latest.py"), "nf-md-language_python");
+        assert_eq!(glyph("protest.cpp"), "nf-md-language_cpp");
+        assert_eq!(glyph("attest.rs"), "nf-md-language_rust");
+        // Yang tetap harus tertangkap:
+        assert_eq!(glyph("test.py"), "nf-md-test_tube");
+        assert_eq!(glyph("foo_test.c"), "nf-md-test_tube");
+        assert_eq!(glyph("FooTests.cs"), "nf-md-test_tube");
+        assert_eq!(glyph("FooSpec.scala"), "nf-md-test_tube");
+    }
+
+    /// "Urutan resolusi" di `icons.toml` itu kontrak, bukan prosa. Setiap
+    /// langkah diuji dengan nama yang hanya bisa dijawab benar oleh urutan itu,
+    /// supaya kodenya tidak bisa menyimpang dari dokumentasinya.
+    #[test]
+    fn urutan_resolusi_ikut_dokumentasi() {
+        // nama persis > awalan ("dockerfile" juga awalan kategori container)
+        assert_eq!(glyph("dockerfile"), "nf-md-docker");
+        // akhiran > awalan ("install." dan ".test.ts" sama-sama cocok)
+        assert_eq!(glyph("install.test.ts"), "nf-md-test_tube");
+        // awalan > ekstensi ("README.md" juga berakhir .md)
+        assert_eq!(glyph("README.md"), "nf-md-book_open_page_variant");
+        // ekstensi > bawaan (bukan nama berkas yang tak dikenal)
+        assert_eq!(glyph("berkas.rs"), "nf-md-language_rust");
     }
 }

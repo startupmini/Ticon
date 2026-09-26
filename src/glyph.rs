@@ -23,7 +23,12 @@ impl Glyphs {
             .glyphs
             .into_iter()
             .map(|(name, code)| match char::from_u32(code as u32) {
-                Some(character) => (name, character),
+                // Glyph dicetak mentah ke terminal; codepoint berupa karakter
+                // kontrol (ESC dsb) akan dieksekusi, bukan ditampilkan.
+                Some(character) if crate::render::is_safe_char(character) => (name, character),
+                Some(_) => panic!(
+                    "codepoint 0x{code:x} ({name}) berupa karakter kontrol — tidak aman dicetak"
+                ),
                 None => panic!("codepoint 0x{code:x} bukan karakter unicode yang sah: {name}"),
             })
             .collect();
