@@ -37,10 +37,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${{ steps.pilih.outputs.tag }}"
-          if gh release view "$tag" >/dev/null 2>&1; then
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "rilis untuk $tag sudah ada — lanjut unggah aset"
           else
-            gh release create "$tag" --title "ikon $tag" --generate-notes
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --title "ikon $tag" --generate-notes
           fi
 
   build:
@@ -86,4 +86,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
-        run: gh release upload "${{ needs.rilis.outputs.tag }}" ikon-*.* --clobber
+        run: gh release upload "${{ needs.rilis.outputs.tag }}" --repo "$GITHUB_REPOSITORY" ikon-*.* --clobber
