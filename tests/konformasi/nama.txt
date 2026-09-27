@@ -1,0 +1,58 @@
+# Korpus konformasi: nama-nama yang dipakai semua implementasi resolver untuk
+# membuktikan hasilnya sama. Baris yang diawali `dir:` adalah nama folder;
+# `#` memulai komentar.
+#
+# Dipakai oleh tests/conformance.rs (Rust) dan examples/ts/cek.ts (TypeScript).
+# Kalau peta ikon berubah dengan sengaja, regenerasi expectation lalu baca
+# perubahannya: itu keputusan data, bukan sekadar pembaruan mechanical.
+dir:src
+dir:node_modules
+dir:.git
+dir:belum-dikenal-folder
+main.rs
+app.test.ts
+README.md
+Dockerfile
+.env
+latest.py
+protest.cpp
+zzz.qqq
+foo_test.c
+FooTests.cs
+FooSpec.scala
+Makefile
+LICENSE
+package.json
+Cargo.toml
+arsip.tar.gz
+tipe.d.ts
+a.b.c.d
+tanpa-ekstensi
+.gitignore
+docker-compose.yml
+chart.yaml
+go.mod
+tests.cs
+attest.rs
+hotest.c
+README
+NOTES.md
+.bashrc
+install.sh
+uninstall.sh
+intro.txt
+CHANGELOG.md
+.env.local
+CONTRIBUTING.md
+test_foo.py
+spec.scala
+userspec.scala
+v0.1.0.md
+x.tar.gz
+IMAGE.PNG
+Foto.JPEG
+.prettierrc
+.eslintrc.json
+unknown.
+1.rs
+a.b

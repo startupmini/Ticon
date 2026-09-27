@@ -107,10 +107,17 @@ src    = { glyph = "nf-md-code_braces",      family = "kode" }
 | `prefix` | – | awalan nama (`readme`, `.env.`) |
 | `suffix` | – | akhiran nama (`_test.go`, `.spec.ts`) |
 | `by_ext` | – | glyph berbeda per ekstensi, **warna tetap milik kategori** |
+| `lebar` | – | berapa sel yang dipakai glyph kategori ini (petunjuk, bukan aturan) |
+| `fallback` | – | teks pendek kalau glyph tidak bisa ditampilkan |
 
 `by_ext` adalah cara memvariasikan bentuk tanpa menambah warna: seluruh bahasa
 pemrograman tetap satu warna, bedanya dibawa glyph. Kunci `by_ext` wajib ada
 di daftar `ext` — audit menolak kunci yang menggantung.
+
+`lebar` dan `fallback` menentukan lebar kolom dan apa yang ditampilkan saat font
+tidak punya glyph-nya — berguna bagi konsumen non-terminal (TUI, web, LSP). Keduanya
+opsional: tanpa `lebar` diasumsikan 2 sel, tanpa `fallback` dipakai `?`. Sampai
+sini keduanya baru ikut diekspor; perintah `ticon` sendiri belum memakainya.
 
 Catatan pencocokan: `ext` selalu huruf kecil (dicek audit); `names`, `prefix`,
 dan `suffix` tidak peduli huruf besar/kecil.
@@ -125,6 +132,9 @@ Dari yang paling spesifik:
 4. awalan nama (`prefix`)
 5. ekstensi terpanjang
 6. bawaan: `folder` untuk folder, `file` untuk file
+
+Nomornya berasal dari enum `Prioritas` (1-5) yang sama dengan angka `priority`
+di `icons.json`, jadi urutan ini tidak ditulis ulang di implementasi lain.
 
 Dua pemenang yang sering ditanyakan:
 
