@@ -116,3 +116,59 @@ fn repo_tetap_satu_alfabet_latin() {
         contoh.join("\n  ")
     );
 }
+
+/// Contoh ikon di README harus selalu cocok dengan pemetaan hari ini.
+///
+/// Baris itu berisi glyph Nerd Font asli, jadi ia bisa basi diam-diam kalau
+/// data berubah: contoh masih menunjuk ikon lama tanpa ada yang salah. Tes ini
+/// menutupnya — kalau gagal, perbarui baris README dengan hasil
+/// `ticon --export` terbaru.
+#[test]
+fn contoh_ikon_readme_sesuai_pemetaan() {
+    let readme = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("README.md"))
+        .expect("README.md harus bisa dibaca");
+    let baris = readme
+        .lines()
+        .find(|l| l.contains('\u{f0169}'))
+        .unwrap_or_else(|| {
+            panic!("baris contoh ikon tidak ketemu di README.md — mungkin sudah terhapus")
+        });
+
+    let rules = ticon::mapping::Rules::load().expect("icons.toml harus bisa dibaca");
+    let glyphs = ticon::glyph::Glyphs::bundled();
+
+    // Pasangan (nama berkas, glyph) seperti yang ditulis di README.
+    let pasangan: Vec<(&str, char)> = baris
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .windows(2)
+        .map(|w| {
+            (
+                w[1],
+                w[0].chars().next().expect("glyph harus punya karakter"),
+            )
+        })
+        .filter(|(nama, _)| nama.contains('.'))
+        .collect();
+    assert!(
+        !pasangan.is_empty(),
+        "tidak ada pasangan nama/glyph yang bisa diperiksa di baris README: {baris}"
+    );
+
+    for (nama, glyph) in pasangan {
+        let ini_folder = !nama.contains('.');
+        let harapan = if ini_folder {
+            rules.resolve_dir(nama).glyph
+        } else {
+            rules.resolve_file(nama).glyph
+        };
+        let kode_benar = glyphs.get(&harapan);
+        assert_eq!(
+            kode_benar,
+            Some(glyph),
+            "README menyebut glyph {glyph:?} untuk `{nama}`, tapi pemetaan sekarang \
+             memakai {harapan} (U+{:04X})",
+            glyph as u32
+        );
+    }
+}
