@@ -1,6 +1,6 @@
 //! Kontrak yang hanya terlihat dari luar biner: sanitasi nama berkas, penolakan
 //! path untuk mode tabel, dan exit code. Tanpa dependensi tambahan — biner
-//! dijalankan langsung lewat `CARGO_BIN_EXE_ikon`.
+//! dijalankan langsung lewat `CARGO_BIN_EXE_ticon`.
 //!
 //! Karakter ESC sengaja tidak diuji di sini: Win32 tidak mengizinkan karakter
 //! kendali (< 0x20) pada nama berkas, jadi kasus itu ditutup tes unit
@@ -12,7 +12,7 @@ use std::fs;
 use std::process::{Command, Output};
 
 fn ikon(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_ikon"))
+    Command::new(env!("CARGO_BIN_EXE_ticon"))
         .args(args)
         .output()
         .expect("biner ikon harus bisa dijalankan")

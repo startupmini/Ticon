@@ -4,6 +4,23 @@ Semua perubahan yang berarti bagi pengguna dicatat di sini. Formatnya
 mengikuti [Keep a Changelog](https://keepachangelog.com/), versinya
 [SemVer](https://semver.org/lang/id/).
 
+## 0.3.0
+
+### Berubah
+
+- **Perintahnya sekarang `ticon`, bukan `ikon`.** Sekaligus menyelaraskan
+  perintah dengan nama paket dan pustakanya. Perilaku, opsi, dan keluarannya
+  tidak berubah — hanya nama yang dipanggil.
+  ```bash
+  # sebelum
+  ikon --list
+  # sekarang
+  ticon --list
+  ```
+- Variabel lingkungan `IKON_ICONS` dan `IKON_COLOR` diganti jadi
+  `TICON_ICONS` dan `TICON_COLOR`. **Nama lama masih dibaca sebagai alias**,
+  jadi konfigurasi yang sudah ada tidak langsung mati.
+
 ## 0.2.0
 
 ### Ditambahkan

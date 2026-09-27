@@ -6,7 +6,7 @@
 //!
 //! Ini sengaja berupa pemindaian teks yang sederhana, bukan parser TOML penuh.
 //! Pemeriksaan yang mendalam (duplikat ekstensi, warna tak dikenal, dan
-//! sebagainya) ada di `cargo test` dan di `ikon --audit`. Yang di sini adalah
+//! sebagainya) ada di `cargo test` dan di `ticon --audit`. Yang di sini adalah
 //! jaring paling murah untuk kesalahan paling sering: salah ketik nama glyph.
 //!
 //! Alasan aturan keluarga glyph ditegakkan: konsistensi visual. Semua ikon

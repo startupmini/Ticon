@@ -40,7 +40,7 @@ jobs:
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "rilis untuk $tag sudah ada — lanjut unggah aset"
           else
-            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --title "ikon $tag" --generate-notes
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --title "ticon $tag" --generate-notes
           fi
 
   build:
@@ -72,18 +72,18 @@ jobs:
       - name: Kemas (tar.gz)
         if: runner.os != 'Windows'
         run: |
-          tar czf "ikon-${{ needs.rilis.outputs.tag }}-${{ matrix.target }}.tar.gz" \
-            -C "target/${{ matrix.target }}/release" ikon
+          tar czf "ticon-${{ needs.rilis.outputs.tag }}-${{ matrix.target }}.tar.gz" \
+            -C "target/${{ matrix.target }}/release" ticon
 
       - name: Kemas (zip)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Compress-Archive -Path "target/${{ matrix.target }}/release/ikon.exe" `
-            -DestinationPath "ikon-${{ needs.rilis.outputs.tag }}-${{ matrix.target }}.zip"
+          Compress-Archive -Path "target/${{ matrix.target }}/release/ticon.exe" `
+            -DestinationPath "ticon-${{ needs.rilis.outputs.tag }}-${{ matrix.target }}.zip"
 
       - name: Unggah ke Rilis
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
-        run: gh release upload "${{ needs.rilis.outputs.tag }}" --repo "$GITHUB_REPOSITORY" ikon-*.* --clobber
+        run: gh release upload "${{ needs.rilis.outputs.tag }}" --repo "$GITHUB_REPOSITORY" ticon-*.* --clobber

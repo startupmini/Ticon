@@ -1,8 +1,8 @@
-# ikon
+# ticon
 
 Ikon minimalis dan flat untuk terminal.
 
-`ikon` menampilkan nama berkas bersama satu glyph yang menunjukkan jenisnya,
+`ticon` menampilkan nama berkas bersama satu glyph yang menunjukkan jenisnya,
 diwarnai menurut kategori. Setiap ikon berasal dari satu keluarga glyph yang
 sama, dan paletnya cuma delapan warna — itulah yang membuatnya terasa tenang,
 bukan seperti daftar logo.
@@ -39,13 +39,13 @@ penjaganya sendiri:
 
 ## Pasang
 
-Proyek ini dikirim lewat GitHub, bukan crates.io — nama `ikon` sudah dipakai
+Proyek ini dikirim lewat GitHub, bukan crates.io — nama `ticon` sudah dipakai
 crate lain di sana, dan aplikasi ini memang tidak dimaksudkan menjadi pustaka
 yang diimpor.
 
 ```bash
 # dari tag rilis
-cargo install --git https://github.com/startupmini/Ticon --tag v0.1.1
+cargo install --git https://github.com/startupmini/Ticon --tag v0.3.0
 
 # atau langsung dari branch utama
 cargo install --git https://github.com/startupmini/Ticon
@@ -58,7 +58,7 @@ cargo run --quiet -- <args>
 ```
 
 Kebutuhan minimum: Rust 1.85 — angka ini berasal dari dependensi (bukan dari
-kode `ikon` sendiri) dan dijaga job `msrv` di CI. Diuji di Linux dan Windows;
+kode `ticon` sendiri) dan dijaga job `msrv` di CI. Diuji di Linux dan Windows;
 lebar terminal di macOS/Linux diambil lewat `ioctl`.
 
 ## Pakai
@@ -68,11 +68,11 @@ ikon                      # daftar direktori saat ini
 ikon src/                 # beberapa path sekaligus juga bisa
 ikon -a --sort size       # termasuk berkas tersembunyi, urut ukuran
 ikon -1                   # satu entri per baris
-ikon --list               # cetak seluruh tabel pemetaan, untuk ditinjau
-ikon --gallery            # cetak contoh ikon dari tiap aturan
-ikon --audit              # periksa konsistensi icons.toml
-ikon --explain main.go    # kenapa berkas ini dapat ikon itu
-ikon --export             # semua aturan sebagai tabel TSV
+ticon --list               # cetak seluruh tabel pemetaan, untuk ditinjau
+ticon --gallery            # cetak contoh ikon dari tiap aturan
+ticon --audit              # periksa konsistensi icons.toml
+ticon --explain main.go    # kenapa berkas ini dapat ikon itu
+ticon --export             # semua aturan sebagai tabel TSV
 ```
 
 | Opsi | Arti |
@@ -95,7 +95,7 @@ menghentikan parsing opsi.
 
 ## Pakai sebagai pustaka
 
-Paketnya bernama **`ticon`**; perintahnya tetap `ikon`. Pustakanya untuk
+Paketnya bernama **`ticon`**; perintahnya tetap `ticon`. Pustakanya untuk
 aplikasi TUI, previewer, atau apa pun yang butuh tauhu  ikon sebuah nama
 tanpa memanggil proses luar:
 
@@ -117,15 +117,15 @@ let penjelasan = rules.explain_file("app.test.ts");
 println!("{:?}", penjelasan.winner()); // Some(Kandidat { matched_by: Suffix, pattern: ".test.ts", .. })
 ```
 
-Untuk tool non-Rust, `ikon --export` mengeluarkan seluruh aturan sebagai TSV
+Untuk tool non-Rust, `ticon --export` mengeluarkan seluruh aturan sebagai TSV
 yang bisa langsung dibaca `awk` atau skrip shell.
 
 | Variabel lingkungan | Arti |
 |---|---|
 | `NO_COLOR` | matikan warna kalau diisi (nilai apa pun) |
 | `CLICOLOR_FORCE` | paksa ikon & warna walau bukan terminal (selain `0`) |
-| `IKON_ICONS` | nilai bawaan untuk `--icons` |
-| `IKON_COLOR` | nilai bawaan untuk `--color` |
+| `TICON_ICONS` | nilai bawaan untuk `--icons` |
+| `TICON_COLOR` | nilai bawaan untuk `--color` |
 | `COLUMNS` | lebar kolom kalau terminal tidak bisa dideteksi |
 
 Ikon memerlukan font yang sudah di-patch Nerd Fonts.
@@ -135,8 +135,8 @@ sering), ikon dan warna dimatikan otomatis supaya output tetap bersih saat
 disalurkan ke program lain. Untuk memaksanya:
 
 ```
-export IKON_ICONS=always
-export IKON_COLOR=always
+export TICON_ICONS=always
+export TICON_COLOR=always
 ```
 
 ## Cara kerjanya

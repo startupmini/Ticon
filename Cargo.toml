@@ -1,8 +1,7 @@
 [package]
 name = "ticon"
-# Pustaka + binary dalam satu paket: pustakanya `ticon`, perintahnya tetap
-# `ikon` (lihat [[bin]] di bawah) supaya tidak ada yang rusak bagi pemakai CLI.
-version = "0.2.0"
+# Pustaka dan binary satu paket dengan satu nama: `ticon`.
+version = "0.3.0"
 edition = "2021"
 # MSRV 1.85 — bukan karena kode kita butuh itu (`std::iter::repeat_n` sudah
 # cukup 1.82), tapi karena `indexmap` (lewat `toml_edit`) memakai manifest
@@ -21,7 +20,7 @@ name = "ticon"
 path = "src/lib.rs"
 
 [[bin]]
-name = "ikon"
+name = "ticon"
 path = "src/main.rs"
 
 # Sengaja dijaga sekecil ini. Crate yang menyentuh API Windows lewat
