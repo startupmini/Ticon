@@ -14,8 +14,9 @@ rust-version = "1.85"
 description = "Ikon minimalis dan flat untuk terminal, plus pustaka pemetaannya"
 license = "MIT"
 repository = "https://github.com/startupmini/Ticon"
-# Pratinjau README dan font subset-nya hanya untuk render gambar di situs —
-# binary tidak membutuhkannya, jadi jangan ikut paket.
+# Pratinjau README (SVG dan font subset render gambar) hanya untuk situs —
+# binary maupun pustaka tidak membutuhkannya, jadi jangan ikut paket.
+# `assets/raster.ttf` justru ikut: itu input untuk jalur render half-block.
 exclude = ["/preview.svg", "/assets/preview/**"]
 
 [lib]

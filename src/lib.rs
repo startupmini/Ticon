@@ -38,6 +38,7 @@ pub mod glyph;
 pub mod json;
 pub mod mapping;
 pub mod peta;
+pub mod raster_data;
 pub mod render;
 pub mod terminal;
 
