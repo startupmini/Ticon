@@ -12,9 +12,14 @@ struct GlyphsFile {
     glyphs: BTreeMap<String, i64>,
 }
 
+/// Tabel nama glyph -> karakter, hasil `assets/glyphs.toml` yang ikut tertanam
+/// di biner.
 pub struct Glyphs(BTreeMap<String, char>);
 
 impl Glyphs {
+    /// Muat tabel glyph yang tertanam. `assets/glyphs.toml` sudah divalidasi
+    /// `build.rs`, jadi kegagalan di sini berarti data yang tertanam rusak —
+    /// kondisi yang tidak bisa diperbaiki dari luar, makanya `panic`.
     pub fn bundled() -> Self {
         let parsed: GlyphsFile = toml::from_str(include_str!("../assets/glyphs.toml"))
             .expect("assets/glyphs.toml tidak bisa dibaca — jalankan `python tools/gen-glyphs.py`");
@@ -36,18 +41,23 @@ impl Glyphs {
         Self(map)
     }
 
+    /// Karakter untuk satu nama glyph, atau `None` kalau namanya tidak dikenal.
     pub fn get(&self, name: &str) -> Option<char> {
         self.0.get(name).copied()
     }
 
+    /// Semua nama glyph, terurut.
     pub fn names(&self) -> impl Iterator<Item = &str> {
         self.0.keys().map(String::as_str)
     }
 
+    /// Jumlah glyph yang tertanam.
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
+    /// True kalau tidak ada glyph sama sekali (tidak terjadi pada data yang
+    /// sudah divalidasi `build.rs`).
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
