@@ -13,6 +13,7 @@ yang rapi (langkah reproduksi + dampak) akan selalu didahulukan.
 |---|---|---|
 | Output terminal | `src/render.rs` (`sanitize`) | karakter C0/C1 dan pengendali arah bidi (U+202A–202E, U+2066–2069) ditulis sebagai `\u{...}`, tidak pernah dieksekusi terminal |
 | Batas muat data | `src/mapping.rs` (`Rules::load_from`) | `icons.toml` ditolak bila memuat karakter kontrol, kode palet non-angka, atau kunci folder yang bentrok |
+| Batas muat peta netral | `src/peta.rs` (`cek_aman`, `MAKS_BERKAS`, cek kunci kembar) | jalur `--icons-map` punya gerbang yang sama: setiap string dari peta diperiksa sebelum masuk `Rules`, berkas di atas 4 MiB ditolak berdasarkan metadata, dan dua aturan dengan `kind`+`key` sama ditolak |
 | Tabel glyph | `build.rs`, `src/glyph.rs` | nama glyph harus dikenal; codepoint tidak boleh karakter kontrol |
 | Data upstream | `tools/gen-glyphs.py` | SHA-256 `glyphnames.json` diverifikasi sebelum `assets/glyphs.toml` ditulis |
 | CI | `.github/workflows/ci.yml` | action dipin ke commit SHA; `GITHUB_TOKEN` dibatasi `contents: read` |
