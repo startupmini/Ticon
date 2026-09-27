@@ -77,6 +77,8 @@ impl Rules {
         })?;
         let bawaan_berkas = sub_node(defaults, "file")?;
         let bawaan_folder = sub_node(defaults, "dir")?;
+        cek_kunci(bawaan_berkas, &KUNCI_KATEGORI, "defaults.file")?;
+        cek_kunci(bawaan_folder, &KUNCI_KATEGORI, "defaults.dir")?;
 
         Self::dari_aturan(akar, &families, bawaan_berkas, bawaan_folder, &bawaan)
     }
@@ -104,6 +106,7 @@ impl Rules {
 
         for (i, rule) in rules.iter().enumerate() {
             let posisi = format!("rules[{i}]");
+            cek_kunci(rule, &KUNCI_ATURAN, &posisi)?;
             let kind = wajib_teks(rule, "kind", &posisi)?;
             let key = wajib_teks(rule, "key", &posisi)?;
             let family = wajib_teks(rule, "family", &posisi)?;
@@ -249,6 +252,41 @@ impl Rules {
     }
 }
 
+/// Kunci yang boleh muncul di dalam satu aturan. Field yang tidak dikenal
+/// **ditolak**, bukan diabaikan: `famly` yang lolos diam-diam membuat pengguna
+/// mengira warnanya terpakai padahal tidak.
+const KUNCI_ATURAN: [&str; 9] = [
+    "kind",
+    "priority",
+    "key",
+    "family",
+    "color",
+    "glyph",
+    "codepoint",
+    "width",
+    "fallback",
+];
+
+/// Kunci yang boleh muncul di dalam `defaults.file` / `defaults.dir`.
+const KUNCI_KATEGORI: [&str; 6] = ["glyph", "codepoint", "family", "color", "width", "fallback"];
+
+/// Tolak kunci yang tidak dikenal di `nilai`, dengan menyebut di mana.
+fn cek_kunci(nilai: &Nilai, boleh: &[&str], posisi: &str) -> Result<(), String> {
+    let Nilai::Object(peta) = nilai else {
+        return Err(format!("{posisi} harus objek"));
+    };
+    for kunci in peta.keys() {
+        if kunci == "$schema" || boleh.contains(&kunci.as_str()) {
+            continue;
+        }
+        return Err(format!(
+            "{posisi}: kunci \"{kunci}\" tidak dikenal (yang boleh: {})",
+            boleh.join(", ")
+        ));
+    }
+    Ok(())
+}
+
 /// Tolak kunci level atas yang tidak dikenal, supaya salah ketik tidak hilang
 /// tanpa suara. `$schema` dikecualikan karena alat biasanya menambahkannya.
 fn cek_kunci_top(akar: &Nilai) -> Result<(), String> {
@@ -370,7 +408,7 @@ mod tests {
         { "kind": "ext", "priority": 4, "key": ".myp", "family": "kerja",
           "glyph": "nf-md-language_rust", "codepoint": 988695, "fallback": "rs" },
         { "kind": "name", "priority": 1, "key": "catatan", "family": "kerja",
-          "glyph": "nf-md-note_outline", "codepoint": 988677 }
+          "glyph": "nf-md-text_box_outline", "codepoint": 988677 }
       ]
     }"#;
 

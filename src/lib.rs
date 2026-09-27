@@ -107,8 +107,8 @@ fn execute() -> Result<ExitCode, String> {
             Ok(ExitCode::SUCCESS)
         }
         Command::Error(message) => Err(format!("{message}\n\nCoba `ticon --help`")),
-        Command::Audit => {
-            let rules = muat_rules(&None)?;
+        Command::Audit(icons_map) => {
+            let rules = muat_rules(&icons_map)?;
             let glyphs = Glyphs::bundled();
             audit(&rules, &glyphs)
         }

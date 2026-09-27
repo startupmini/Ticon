@@ -100,8 +100,9 @@ pub enum Command {
     Mapping(Options),
     /// Cetak contoh hasil ikon, satu per aturan.
     Gallery(Options),
-    /// Periksa konsistensi pemetaan.
-    Audit,
+    /// Periksa konsistensi peta yang dipakai, lalu keluar dengan pesan bila ada
+    /// yang janggal.
+    Audit(Option<PathBuf>),
     /// Jelaskan kenapa sebuah nama mendapat ikon tertentu, memakai peta yang
     /// diminta pengguna kalau ada.
     Explain(String, Option<PathBuf>),
@@ -259,7 +260,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Command {
                 show_gallery = true;
                 Ok(())
             }
-            "--audit" => return Command::Audit,
+            "--audit" => return Command::Audit(options.icons_map.clone()),
             "--explain" => match take_value("--explain").and_then(|value| {
                 if value.is_empty() {
                     Err("opsi --explain butuh nama".to_string())

@@ -75,9 +75,16 @@ fn peta_netral_tertulis_tangan_dipakai() {
         String::from_utf8_lossy(&hasil.stderr)
     );
     let keluar = String::from_utf8_lossy(&hasil.stdout);
+    // `.myp` tidak ada di peta bawaan, jadi kalau menang berarti peta kustom
+    // benar-benar dipakai. Yang dicetak `--explain` adalah karakter dan warnanya,
+    // bukan nama glyph-nya.
     assert!(
-        keluar.contains("nf-md-language_rust"),
-        "peta kustom harus dipakai: {keluar}"
+        keluar.contains(".myp"),
+        "aturan dari peta kustom harus menang: {keluar}"
+    );
+    assert!(
+        keluar.contains("green"),
+        "warna harus ikut dari peta kustom: {keluar}"
     );
 }
 
