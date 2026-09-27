@@ -4,6 +4,15 @@ Semua perubahan yang berarti bagi pengguna dicatat di sini. Formatnya
 mengikuti [Keep a Changelog](https://keepachangelog.com/), versinya
 [SemVer](https://semver.org/lang/id/).
 
+## Belum rilis
+
+### Diperbaiki
+
+- **`--icons-list-packs` tidak bisa di-cut.** Pemisah tab ikut ter-*sanitize*
+  sehingga berubah jadi teks `\u{9}`. Sanitasi sekarang dilakukan per bagian
+  sebelum kolom dirangkai. Ditutup tes e2e yang memakai `split('\t')` sungguhan.
+- **Typo di keterangan pack `shape`** yang tampil ke pengguna.
+
 ## 0.4.3
 
 ### Ditambahkan

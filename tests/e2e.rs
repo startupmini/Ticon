@@ -18,6 +18,56 @@ fn ikon(args: &[&str]) -> Output {
         .expect("biner ikon harus bisa dijalankan")
 }
 
+/// Setup fixture: pack di direktori sementara, lalu `ticon --icons-list-packs`
+/// harus menampilkannya apa adanya. Ini yang menangkap bug 0.4.3, di mana
+/// `render::sanitize()` mengubah pemisah tab jadi teks `\u{9}` sehingga kolomnya
+/// tidak bisa di-cut.
+#[test]
+fn daftar_pack_menghasilkan_kolom_tab_yang_bisa_dipotong() {
+    let dir = std::env::temp_dir().join(format!("ticon-pack-uji-{}", std::process::id()));
+    let pack = dir.join("uji").join("pack.json");
+    fs::create_dir_all(pack.parent().expect("ada induknya")).expect("direktori dibuat");
+    // Delimiter `##` dipakai karena isi JSON memuat `"#` (dari `"kode":"#"`),
+    // yang akan menutup raw string `r#"..."#` lebih dulu.
+    fs::write(
+        &pack,
+        r##"{"schema":"ticon-pack/1","pack":{"name":"uji","version":"2.1.0","description":"pack uji","author":"t"},"shapes":{"kode":"#"}}"##,
+    )
+    .expect("pack ditulis");
+
+    let keluar = Command::new(env!("CARGO_BIN_EXE_ticon"))
+        .args(["--icons-list-packs"])
+        .env("TICON_PACKS", &dir)
+        .output()
+        .expect("biner ikon harus bisa dijalankan");
+    let _ = fs::remove_dir_all(&dir);
+
+    assert!(
+        keluar.status.success(),
+        "`--icons-list-packs` gagal: {}",
+        String::from_utf8_lossy(&keluar.stderr)
+    );
+    let teks = String::from_utf8_lossy(&keluar.stdout);
+
+    // Pemisah tab harus tab sungguhan. Di 0.4.3 barisnya masih memuat `\u{9}`
+    // sebagai teks, jadi `cut -f1` tidak bisa dipakai.
+    assert!(
+        !teks.contains("\\u{"),
+        "tab tidak boleh jadi teks escapes:\n{teks}"
+    );
+
+    let baris = teks
+        .lines()
+        .find(|b| b.starts_with("uji\t"))
+        .unwrap_or_else(|| panic!("baris pack `uji` tidak ada di:\n{teks}"));
+    let kolom: Vec<&str> = baris.split('\t').collect();
+    assert_eq!(kolom.len(), 4, "kolom: {kolom:?}");
+    assert_eq!(kolom[0], "uji");
+    assert!(kolom[1].ends_with("pack.json"), "asal: {}", kolom[1]);
+    assert_eq!(kolom[2], "2.1.0");
+    assert_eq!(kolom[3], "pack uji\t(t)");
+}
+
 #[test]
 fn audit_keluar_nol_saat_pemetaan_bersih() {
     let hasil = ikon(&["--audit"]);

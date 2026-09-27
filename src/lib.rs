@@ -238,29 +238,33 @@ fn print_list_packs() {
     println!("{:<lebar$}\tASAL\tKETERANGAN", "PACK");
 
     for info in packs {
+        // Sanitasi dilakukan per bagian, BUKAN pada baris yang sudah dirangkai.
+        // `sanitize()` mengganti karakter kontrol dengan teks `\u{...}` - kalau
+        // dipakai setelah tab disisipkan, pemisah kolom ikut berubah jadi
+        // `\u{9}` dan kolomnya tidak bisa di-cut. (Ini memang terjadi di 0.4.3.)
         let meta = match &info.meta {
             Ok(meta) => {
-                let mut kolom = meta.versi.clone();
+                // `sanitize` mengembalikan `Cow`, jadi kumpulkan lewat
+                // `to_mut()` - bukan `push`, yang tidak ada di `Cow`.
+                let mut kolom = render::sanitize(&meta.versi).into_owned();
                 if let Some(deskripsi) = &meta.deskripsi {
                     kolom.push('\t');
-                    kolom.push_str(deskripsi);
+                    kolom.push_str(&render::sanitize(deskripsi));
                 }
                 if let Some(penulis) = &meta.penulis {
-                    kolom.push_str(&format!("\t({penulis})"));
+                    kolom.push('\t');
+                    kolom.push('(');
+                    kolom.push_str(&render::sanitize(penulis));
+                    kolom.push(')');
                 }
                 kolom
             }
             // Pack yang ada tapi gagal dimuat tetap ditampilkan, lengkap dengan
-            // alasannya:-pack yang diam-diam hilang dari daftar lebih buruk
+            // alasannya: pack yang diam-diam hilang dari daftar lebih buruk
             // daripada pack yang terlihat rusak.
-            Err(pesan) => format!("GAGAL DIMUAT\t{pesan}"),
+            Err(pesan) => format!("GAGAL DIMUAT\t{}", render::sanitize(pesan)),
         };
-        println!(
-            "{:<lebar$}\t{}\t{}",
-            info.nama,
-            info.asal.label(),
-            render::sanitize(&meta)
-        );
+        println!("{:<lebar$}\t{}\t{}", info.nama, info.asal.label(), meta);
     }
 }
 

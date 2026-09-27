@@ -4,7 +4,7 @@
   "pack": {
     "name": "shape",
     "version": "1.0.0",
-    "description": "Bentuk satu sel per keluarga warna; tidak butuh Nerd Font. Bentuknya EBWIDTH ambiguous, jadi di terminal yang mengonfigurasi 'ambiguous = lebar' kolom bisa bergeser dua sel. Pakai pack 'sempit' kalau itu tidak boleh terjadi.",
+    "description": "Bentuk satu sel per keluarga warna; tidak butuh Nerd Font. Karakternya ambiguous-width, jadi di terminal yang mengonfigurasi 'ambiguous = lebar' kolom bisa bergeser dua sel. Pakai pack 'sempit' kalau itu tidak boleh terjadi.",
     "author": "ticon",
     "license": "MIT",
     "min_ticon": "0.4.3"
