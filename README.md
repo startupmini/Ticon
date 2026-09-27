@@ -120,6 +120,12 @@ println!("{:?}", penjelasan.winner()); // Some(Kandidat { matched_by: Suffix, pa
 Untuk tool non-Rust, `ticon --export` mengeluarkan seluruh aturan sebagai TSV
 yang bisa langsung dibaca `awk` atau skrip shell.
 
+Contoh lengkap program yang memakai pustakanya ada di repo:
+
+```bash
+cargo run --example tui
+```
+
 | Variabel lingkungan | Arti |
 |---|---|
 | `NO_COLOR` | matikan warna kalau diisi (nilai apa pun) |
