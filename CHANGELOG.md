@@ -4,6 +4,18 @@ Semua perubahan yang berarti bagi pengguna dicatat di sini. Formatnya
 mengikuti [Keep a Changelog](https://keepachangelog.com/), versinya
 [SemVer](https://semver.org/lang/id/).
 
+## 0.3.1
+
+### Ditambahkan
+
+- `examples/tui.rs`: contoh pemakaian pustaka dari program yang menggambar
+  panelnya sendiri. Menunjukkan tiga hal yang jadi keputusan konsumen, bukan
+  keputusan `ticon`: memetakan nama warna ke gaya sendiri, lebar sel glyph,
+  dan menampilkan alasan sebuah ikon dipilih.
+  ```bash
+  cargo run --example tui
+  ```
+
 ## 0.3.0
 
 ### Berubah
