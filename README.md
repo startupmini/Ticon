@@ -11,6 +11,29 @@ bukan seperti daftar logo.
 󰅩 src   󰙨 app.test.ts  󰟓 main.go  󰗚 README.md   󰞹 backup.tar.gz  󰯅 .env
 ```
 
+Kotak-kotak di baris itu **bukan ikon yang rusak** — itu soal font. Glyph Nerd
+Font hidup di codepoint private-use `U+F0000`–`U+F1AFF`, yang tidak dimiliki font
+apa pun yang terpasang di GitHub maupun crates.io, jadi di sana mereka selalu
+tampil sebagai kotak. Di terminal dengan Nerd Font terpasang, kotak itu
+justru ikon yang sebenarnya.
+
+Karena itu, contoh kedua ini bisa dibaca di mana saja — tanpa glyph, dari
+pemetaan yang sama persis:
+
+```
+$ ticon -1 --icons never src
+app.test.ts
+backup.tar.gz
+main.go
+node_modules
+photo.png
+query.sql
+README.md
+script.sh
+src
+styles.css
+```
+
 ## Dua aturan yang ditegakkan mesin
 
 Desain yang cuma ditulis di dokumen akan luntur. Dua prinsip di bawah ini punya
