@@ -15,8 +15,8 @@ mengikuti [Keep a Changelog](https://keepachangelog.com/), versinya
   ada. Alasannya: glyph Nerd Font ada di codepoint private-use, jadi pengguna
   tanpa font itu melihat kotak, dan program tidak bisa mendeteksinya dari
   dalam proses.
-- **Subset font Nerd Fonts ikut dikemas** (`assets/raster.ttf`, 9,1 KiB dari
-  2,2 MB; 38 glyph). Bukan untuk jalur karakter — terminal tetap memakai font
+- **Subset font Nerd Fonts ikut dikemas** (`assets/raster.ttf`, 14,1 KiB dari
+  2,2 MB; 55 glyph). Bukan untuk jalur karakter — terminal tetap memakai font
   miliknya sendiri — tapi sebagai input jalur render half-block, supaya
   konsumen tidak perlu mengunduh 2,2 MB.
   `tests/subset-font.rs` menjaga subset itu tetap pas: gagal kalau

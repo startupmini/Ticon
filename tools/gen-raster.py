@@ -3,7 +3,7 @@
 Kenapa ada: glyph Nerd Font ada di codepoint private-use, jadi program yang
 hanya mencetak karakter **tidak bisa** lepas dari font yang terpasang di
 terminal. Namun program yang me-*raster* sendiri (jalur half-block) boleh
-membawa fontnya sendiri - dan untuk itu hanya perlu 38 glyph, bukan 2,3 MB.
+membawa fontnya sendiri - dan untuk itu hanya perlu 55 glyph, bukan 2,2 MB.
 
 Keluaran:
   assets/raster.ttf      - subset, hanya codepoint yang dipakai icons.toml
@@ -37,11 +37,18 @@ FONT = "DepartureMonoNerdFontMono-Regular.otf"
 
 
 def glyph_dipakai() -> set[str]:
-    """Nama glyph yang dirujuk `icons.toml`, termasuk isian `by_ext`."""
+    """Nama glyph yang dirujuk `icons.toml`.
+
+    Dua sumber: `glyph = "..."` per kategori/aturan folder, dan **semua** tabel
+    `by_ext` — bukan cuma `[categories.by_ext]`. Versi pertama hanya membaca satu
+    kunci dan diam-diam melewatkan 17 glyph bahasa (`.go`, `.rs`, `.py`, ...);
+    tes `subset_font_mencakup_semua_glyph_yang_dipakai` yang menangkapnya.
+    """
     toml = io.open(os.path.join(AKAR, "icons.toml"), encoding="utf-8").read()
-    nama = set(re.findall(r'glyph\s*=\s*"(nf-[^"]+)"', toml))
-    for blok in re.findall(r"\[categories\.by_ext\][^\[]*", toml):
-        nama.update(re.findall(r'"(nf-[a-z0-9_\-]+)"', blok))
+    isi = "\n".join(baris for baris in toml.splitlines() if not baris.lstrip().startswith("#"))
+    nama = set(re.findall(r'glyph\s*=\s*"(nf-[^"]+)"', isi))
+    for _, isi_tabel in re.findall(r"^\[([^\]]*by_ext)\]$(.*?)(?=^\[|\Z)", isi, re.M | re.S):
+        nama.update(re.findall(r'"(nf-[a-z0-9_\-]+)"', isi_tabel))
     return nama
 
 

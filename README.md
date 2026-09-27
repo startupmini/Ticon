@@ -114,7 +114,7 @@ Alias yang didukung: `--colour` (sama dengan `--color`), `--no-color` (sama
 dengan `--color never`), `--sort extension` / `--sort mtime`, dan `--` untuk
 menghentikan parsing opsi.
 
-### Fontnya ikut dikemas: 9 KiB
+### Fontnya ikut dikemas: 14 KiB
 
 Pertanyaan yang wajar: kalau masalahnya font, kenapa font-nya tidak disertakan?
 Jawabannya: **karakter yang dicetak ke terminal tidak bisa memakai font bawaan
@@ -127,8 +127,8 @@ Maka yang dikemas adalah **subset**, bukan font penuh:
 | berkas | ukuran | isi |
 |---|---|---|
 | font penuh (DepartureMono Nerd Font) | 2,2 MB | ±4.000 glyph |
-| `assets/raster.ttf` (dikemas) | **9,1 KiB** | 38 glyph yang benar dipakai `ticon` |
-| `src/raster_data.rs` (dikemas) | 2,2 KiB | nama glyph → codepoint |
+| `assets/raster.ttf` (dikemas) | **14,1 KiB** | 55 glyph yang benar dipakai `ticon` |
+| `src/raster_data.rs` (dikemas) | 2,8 KiB | nama glyph → codepoint |
 
 Lisensinya SIL OFL 1.1 (bukan MIT seperti yang tertulis di README upstream),
 jadi `assets/preview/LICENSE` ikut disimpan. Provenansnya lengkap: tag upstream,
