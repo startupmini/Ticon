@@ -26,7 +26,7 @@ Opsi:
         --gallery          cetak contoh ikon dari tiap aturan
         --audit            periksa konsistensi pemetaan
         --explain <nama>   kenapa nama itu dapat ikon tersebut
-        --export           cetak semua aturan sebagai tabel TSV
+        --export           cetak semua aturan (--export=json untuk format netral)
     -h, --help             tampilkan bantuan ini
     -V, --version          tampilkan versi
 
@@ -99,8 +99,8 @@ pub enum Command {
     Audit,
     /// Jelaskan kenapa sebuah nama mendapat ikon tertentu.
     Explain(String),
-    /// Cetak seluruh aturan sebagai tabel TSV ke stdout.
-    Export,
+    /// Cetak seluruh aturan ke stdout, dalam bentuk yang diminta.
+    Export(Format),
     /// Cetak bantuan dan keluar.
     Help,
     /// Cetak versi dan keluar.
@@ -151,6 +151,35 @@ fn env_mode(nama_resmi: &str) -> Result<Option<Mode>, String> {
     Mode::parse(&nilai)
         .map(Some)
         .map_err(|error| format!("{terpakai}: {error}"))
+}
+
+/// Bentuk `--export`: TSV (default, enak dibaca `awk`) atau JSON (kontrak
+/// netral untuk konsumen non-Rust).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Format {
+    /// Tab-separated, satu baris per aturan.
+    Tsv,
+    /// JSON berversi, untuk program lain.
+    Json,
+}
+
+impl Format {
+    /// Dikenali dari nilai `--export=<format>`; `None` kalau tidak dikenal.
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "tsv" => Some(Format::Tsv),
+            "json" => Some(Format::Json),
+            _ => None,
+        }
+    }
+
+    /// Namanya seperti yang diketik pengguna.
+    pub fn nama(self) -> &'static str {
+        match self {
+            Format::Tsv => "tsv",
+            Format::Json => "json",
+        }
+    }
 }
 
 /// Ubah argumen menjadi [`Command`].
@@ -233,7 +262,22 @@ pub fn parse(args: impl Iterator<Item = String>) -> Command {
                 Ok(name) => return Command::Explain(name),
                 Err(message) => return Command::Error(message),
             },
-            "--export" => return Command::Export,
+            // Bentuk opsional hanya lewat `=`, supaya `--export` di followed
+            // path tidak ikut menelan nama berkas itu.
+            "--export" => {
+                let format = match inline_value {
+                    Some(value) => match Format::parse(&value) {
+                        Some(format) => format,
+                        None => {
+                            return Command::Error(format!(
+                                "bentuk '{value}' tidak dikenal untuk --export (tsv | json)"
+                            ))
+                        }
+                    },
+                    None => Format::Tsv,
+                };
+                return Command::Export(format);
+            }
             "--icons" => take_value("--icons").and_then(|value| {
                 icon_mode = Some(Mode::parse(&value)?);
                 Ok(())

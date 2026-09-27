@@ -120,6 +120,41 @@ println!("{:?}", penjelasan.winner()); // Some(Kandidat { matched_by: Suffix, pa
 Untuk tool non-Rust, `ticon --export` mengeluarkan seluruh aturan sebagai TSV
 yang bisa langsung dibaca `awk` atau skrip shell.
 
+## Pakai sebagai format netral (bukan Rust)
+
+`ticon --export=json` mengeluarkan seluruh peta sebagai satu berkas JSON berversi
+(`ticon-map/1`) — kontrak yang tidak bergantung pada `ticon`:
+
+```bash
+ticon --export=json > icons.json
+```
+
+Yang membuatnya bisa dipakai apa adanya, tanpa terikat ke `ticon`:
+
+- **Urutan resolver ikut keluar** sebagai angka `priority`, jadi implementasinya
+  tidak perlu menebak tahap mana yang menang lebih dulu.
+- **`keluarga`** adalah bagian kontrak utama (yang dipakai memetakan ke gaya
+  sendiri); `warna` cuma bawaan `ticon` dan boleh diabaikan.
+- **`lebar`** (petunjuk lebar sel glyph) dan **`fallback`** ikut dibawa, sehingga
+  aplikasi tanpa Nerd Font pun bisa merender sesuatu yang berarti.
+- **Bisa ditulis tangan**: 40 ikon sendiri cukup satu berkas dengan format yang
+  sama; `ticon` hanya salah satu pembuatnya.
+
+Resolver referensi untuk TypeScript ada di `examples/ts/`, dan **korpus
+konformasi**-nya (`tests/konformasi/`) dipakai oleh tes Rust *dan* oleh
+`examples/ts/cek.ts` — jadi "peta ini benar" bisa dibuktikan di bahasa apa pun,
+tanpa bergantung pada `ticon` saat runtime. Praktikalnya begini:
+
+```bash
+# 1. hasilkan peta netral dari binary yang sudah terpasang
+ticon --export=json > icons.json
+
+# 2. buktikan resolver TypeScript punya hasil yang sama dengan Rust
+node --experimental-strip-types examples/ts/cek.ts \
+  icons.json tests/konformasi/nama.txt tests/konformasi/harapan.tsv
+# konformasi TypeScript: 51 entri cocok dengan korpus
+```
+
 Contoh lengkap program yang memakai pustakanya ada di repo:
 
 ```bash

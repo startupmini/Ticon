@@ -60,6 +60,15 @@ pub struct Category {
     /// jadi variasi bentuk tidak menambah warna baru.
     #[serde(default)]
     pub by_ext: BTreeMap<String, String>,
+    /// Berapa sel yang dipakai untuk glyph kategori ini, sebagai petunjuk
+    /// bagi konsumen yang tidak memakai Nerd Font. Kosong berarti pakai
+    /// [`crate::render::LEBAR_GLYPH_BAWAAN`].
+    #[serde(default)]
+    pub lebar: Option<usize>,
+    /// Teks pendek yang ditampilkan kalau glyph tidak tersedia — supaya
+    /// aplikasi tanpa Nerd Font tetap bisa menampilkan sesuatu yang berarti.
+    #[serde(default)]
+    pub fallback: Option<String>,
 }
 
 /// Aturan folder well-known dari bagian `[dirs]`: bentuk dan keluarga warna.
@@ -78,6 +87,50 @@ struct IconsFile {
     categories: BTreeMap<String, Category>,
     #[serde(default)]
     dirs: BTreeMap<String, DirRule>,
+}
+
+/// Urutan resolusi, dari yang paling spesifik. Angkanya ikut keluar di
+/// `icons.json`, jadi resolver di bahasa lain (TypeScript, Python, ...) cukup
+/// mengurutkan sesuai angka — tidak perlu menebak urutan mana yang benar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Prioritas {
+    /// Nama berkas persis dari `names`.
+    Nama = 1,
+    /// Akhiran dari `suffix`.
+    Akhiran = 2,
+    /// Awalan dari `prefix`.
+    Awalan = 3,
+    /// Ekstensi dari `ext`; yang terpanjang menang.
+    Ekstensi = 4,
+    /// Tidak ada aturan yang cocok; kategori bawaan.
+    Bawaan = 5,
+}
+
+impl Prioritas {
+    /// Tahapan yang punya aturan. `Bawaan` bukan tahap: itu hasil akhir saat
+    /// tidak ada yang cocok.
+    pub const URUTAN: [Prioritas; 4] = [
+        Prioritas::Nama,
+        Prioritas::Akhiran,
+        Prioritas::Awalan,
+        Prioritas::Ekstensi,
+    ];
+
+    /// Angka prioritas, seperti yang ditulis di `icons.json`.
+    pub fn angka(self) -> u8 {
+        self as u8
+    }
+
+    /// Nilai kolom `jenis` di ekspor.
+    pub fn jenis(self) -> &'static str {
+        match self {
+            Prioritas::Nama => "nama",
+            Prioritas::Akhiran => "akhiran",
+            Prioritas::Awalan => "awalan",
+            Prioritas::Ekstensi => "ext",
+            Prioritas::Bawaan => "bawaan",
+        }
+    }
 }
 
 /// Dari mana sebuah aturan berasal. Urutan enum ini juga urutan prioritasnya,
@@ -99,6 +152,28 @@ pub enum MatchedBy {
 }
 
 impl MatchedBy {
+    /// Tahap mana pun yang menghasilkan aturan ini.
+    pub fn dari(prioritas: Prioritas) -> Self {
+        match prioritas {
+            Prioritas::Nama => MatchedBy::Name,
+            Prioritas::Akhiran => MatchedBy::Suffix,
+            Prioritas::Awalan => MatchedBy::Prefix,
+            Prioritas::Ekstensi => MatchedBy::Extension,
+            Prioritas::Bawaan => MatchedBy::Fallback,
+        }
+    }
+
+    /// Tahap mana pun yang menghasilkan aturan ini, kalau bisa.
+    pub fn prioritas(self) -> Option<Prioritas> {
+        match self {
+            MatchedBy::Name => Some(Prioritas::Nama),
+            MatchedBy::Suffix => Some(Prioritas::Akhiran),
+            MatchedBy::Prefix => Some(Prioritas::Awalan),
+            MatchedBy::Extension => Some(Prioritas::Ekstensi),
+            MatchedBy::WellKnownFolder | MatchedBy::Fallback => None,
+        }
+    }
+
     /// Label siap tampil, untuk `ticon --explain` dan dokumentasi.
     pub fn label(self) -> &'static str {
         match self {
@@ -384,26 +459,31 @@ impl Rules {
         }
     }
 
-    /// Satu-satunya tempat urutan prioritas ditetapkan, supaya `resolve_*` dan
-    /// `explain_*` tidak bisa berbeda pendapat: nama persis → akhiran → awalan
-    /// → ekstensi terpanjang. Kalau tidak ada yang cocok, hasilnya
-    /// [`MatchedBy::Fallback`].
+    /// Satu-satunya tempat urutan prioritas dijalankan, supaya `resolve_*` dan
+    /// `explain_*` tidak bisa berbeda pendapat. Kalau tidak ada yang cocok,
+    /// hasilnya [`MatchedBy::Fallback`].
+    ///
+    /// Tahapannya dibaca dari [`Prioritas::URUTAN`]: enum yang sama dengan
+    /// angka yang diekspor ke `icons.json`, jadi urutan ini tidak ditulis
+    /// dua kali di dua bahasa.
     fn cari(&self, key: &str) -> Option<(Resolved, MatchedBy, String)> {
-        if let Some(resolved) = self.by_name.get(key) {
-            return Some((resolved.clone(), MatchedBy::Name, key.to_string()));
-        }
-        if let Some((pattern, resolved)) =
-            first_match(key, &self.suffixes, |name, p| name.ends_with(p))
-        {
-            return Some((resolved, MatchedBy::Suffix, pattern.to_string()));
-        }
-        if let Some((pattern, resolved)) =
-            first_match(key, &self.prefixes, |name, p| name.starts_with(p))
-        {
-            return Some((resolved, MatchedBy::Prefix, pattern.to_string()));
-        }
-        if let Some((pattern, resolved)) = self.match_extension(key) {
-            return Some((resolved, MatchedBy::Extension, pattern.to_string()));
+        for prioritas in Prioritas::URUTAN {
+            let ditemukan = match prioritas {
+                Prioritas::Nama => self.by_name.get(key).map(|r| (r.clone(), key.to_string())),
+                Prioritas::Akhiran => first_match(key, &self.suffixes, |name, p| name.ends_with(p))
+                    .map(|(pola, r)| (r, pola.to_string())),
+                Prioritas::Awalan => {
+                    first_match(key, &self.prefixes, |name, p| name.starts_with(p))
+                        .map(|(pola, r)| (r, pola.to_string()))
+                }
+                Prioritas::Ekstensi => self
+                    .match_extension(key)
+                    .map(|(pola, r)| (r, pola.to_string())),
+                Prioritas::Bawaan => None,
+            };
+            if let Some((resolved, pola)) = ditemukan {
+                return Some((resolved, MatchedBy::dari(prioritas), pola));
+            }
         }
         None
     }
@@ -452,42 +532,56 @@ impl Rules {
         let key = name.to_lowercase();
         let mut kandidat = Vec::new();
 
-        if let Some(resolved) = self.by_name.get(&key) {
-            kandidat.push(Kandidat {
-                matched_by: MatchedBy::Name,
-                pattern: key.clone(),
-                glyph: resolved.glyph.clone(),
-                color: resolved.color.clone(),
-            });
-        }
-        for (pola, resolved) in &self.suffixes {
-            if key.ends_with(pola.as_str()) {
-                kandidat.push(Kandidat {
-                    matched_by: MatchedBy::Suffix,
-                    pattern: pola.clone(),
-                    glyph: resolved.glyph.clone(),
-                    color: resolved.color.clone(),
-                });
-            }
-        }
-        for (pola, resolved) in &self.prefixes {
-            if key.starts_with(pola.as_str()) {
-                kandidat.push(Kandidat {
-                    matched_by: MatchedBy::Prefix,
-                    pattern: pola.clone(),
-                    glyph: resolved.glyph.clone(),
-                    color: resolved.color.clone(),
-                });
-            }
-        }
-        for (position, _) in key.match_indices('.') {
-            if let Some(resolved) = self.by_ext.get(&key[position..]) {
-                kandidat.push(Kandidat {
-                    matched_by: MatchedBy::Extension,
-                    pattern: key[position..].to_string(),
-                    glyph: resolved.glyph.clone(),
-                    color: resolved.color.clone(),
-                });
+        for prioritas in Prioritas::URUTAN {
+            let kunci = key.clone();
+            match prioritas {
+                Prioritas::Nama => {
+                    if let Some(resolved) = self.by_name.get(&kunci) {
+                        kandidat.push(Kandidat {
+                            matched_by: MatchedBy::dari(prioritas),
+                            pattern: kunci,
+                            glyph: resolved.glyph.clone(),
+                            color: resolved.color.clone(),
+                        });
+                    }
+                }
+                Prioritas::Akhiran => {
+                    for (pola, resolved) in &self.suffixes {
+                        if kunci.ends_with(pola.as_str()) {
+                            kandidat.push(Kandidat {
+                                matched_by: MatchedBy::dari(prioritas),
+                                pattern: pola.clone(),
+                                glyph: resolved.glyph.clone(),
+                                color: resolved.color.clone(),
+                            });
+                        }
+                    }
+                }
+                Prioritas::Awalan => {
+                    for (pola, resolved) in &self.prefixes {
+                        if kunci.starts_with(pola.as_str()) {
+                            kandidat.push(Kandidat {
+                                matched_by: MatchedBy::dari(prioritas),
+                                pattern: pola.clone(),
+                                glyph: resolved.glyph.clone(),
+                                color: resolved.color.clone(),
+                            });
+                        }
+                    }
+                }
+                Prioritas::Ekstensi => {
+                    for (position, _) in kunci.match_indices('.') {
+                        if let Some(resolved) = self.by_ext.get(&kunci[position..]) {
+                            kandidat.push(Kandidat {
+                                matched_by: MatchedBy::dari(prioritas),
+                                pattern: kunci[position..].to_string(),
+                                glyph: resolved.glyph.clone(),
+                                color: resolved.color.clone(),
+                            });
+                        }
+                    }
+                }
+                Prioritas::Bawaan => {}
             }
         }
         Explanation { kandidat }

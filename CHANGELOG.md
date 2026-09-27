@@ -4,6 +4,34 @@ Semua perubahan yang berarti bagi pengguna dicatat di sini. Formatnya
 mengikuti [Keep a Changelog](https://keepachangelog.com/), versinya
 [SemVer](https://semver.org/lang/id/).
 
+## 0.4.0
+
+### Ditambahkan
+
+- **`ticon --export=json`**: peta ikon sebagai satu berkas JSON berversi
+  (`ticon-map/1`) — kontrak netral untuk konsumen non-Rust. Yang membuatnya
+  tidak terikat: urutan resolver ikut keluar sebagai angka `priority`, warna
+  bawaan (`warna`) tinggal satu field yang boleh diabaikan (yang dipakai
+  memetakan `keluarga` ke gaya sendiri), dan `lebar` serta `fallback` ikut
+  dibawa supaya aplikasi tanpa Nerd Font tetap bisa merender sesuatu.
+- **`Prioritas` jadi API publik** dengan angka 1-5. `resolve_*`, `explain_*`, dan
+  ekspor JSON membaca enum yang sama, jadi urutan resolusi tidak ditulis dua
+  kali di dua bahasa lagi.
+- **Kolom opsional `lebar` dan `fallback` per kategori** di `icons.toml`.
+- **`examples/ts/`**: resolver referensi TypeScript yang membaca
+  `icons.json`, memetakan warna ke gaya sendiri, dan memutuskan lebar selnya
+  sendiri.
+- **Korpus konformasi** (`tests/konformasi/`): 51 entri nama berkas dan folder
+  beserta hasil yang diharapkan. Dipakai tes Rust **dan** `examples/ts/cek.ts`,
+  jadi resolver di bahasa lain bisa membuktikan dirinya sama tanpa bergantung
+  pada `ticon` saat runtime. Job CI baru menjalankannya di Linux.
+
+### Berubah
+
+- `ticon --export` tanpa nilai tetap TSV seperti sebelumnya; bentuk JSON diambil
+  lewat `--export=json` (hanya nilai inline, supaya `--export` tidak ikut
+  menelan nama path yang menyusul).
+
 ## 0.3.1
 
 ### Ditambahkan

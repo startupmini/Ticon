@@ -46,9 +46,9 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::SystemTime;
 
-use cli::{Command, Options, Sort};
+use cli::{Command, Format, Options, Sort};
 use glyph::Glyphs;
-use mapping::Rules;
+use mapping::{Prioritas, Rules};
 use render::Item;
 use unicode_width::UnicodeWidthStr;
 
@@ -90,10 +90,10 @@ fn execute() -> Result<ExitCode, String> {
             print_explain(&rules, &glyphs, &name);
             Ok(ExitCode::SUCCESS)
         }
-        Command::Export => {
+        Command::Export(format) => {
             let rules = Rules::load()?;
             let glyphs = Glyphs::bundled();
-            print_export(&rules, &glyphs);
+            print_export(&rules, &glyphs, format);
             Ok(ExitCode::SUCCESS)
         }
         Command::Mapping(options) => {
@@ -547,79 +547,231 @@ fn print_explain(rules: &Rules, glyphs: &Glyphs, name: &str) {
     }
 }
 
-/// `--export`: seluruh aturan sebagai TSV ke stdout.
-///
-/// Format datar tanpa dependensi, jadi enak dibaca `awk`, skrip shell, dan
-/// tool non-Rust. Kolomnya: jenis, kunci, nama glyph, codepoint, keluarga,
-/// warna. `jenis` membedakan `ext`/`nama`/`awalan`/`akhiran`/`dir`/`keluarga`
-/// supaya pemanggil bisa menyusun ulang urutan resolusi yang sama.
-fn print_export(rules: &Rules, glyphs: &Glyphs) {
-    println!("jenis\tkunci\tglyph\tcodepoint\tkeluarga\twarna");
+/// Satu aturan yang siap diekspor, netral terhadap bentuk keluaran: TSV dan
+/// JSON membaca daftar yang sama, jadi keduanya tidak mungkin berbeda isi.
+struct AturanEkspor {
+    /// `None` untuk folder well-known: itu bukan tahap resolusi berkas.
+    prioritas: Option<Prioritas>,
+    /// Nilai kolom `jenis`: `nama`, `akhiran`, `awalan`, `ext`, atau `dir`.
+    jenis: &'static str,
+    kunci: String,
+    glyph: String,
+    codepoint: Option<u32>,
+    /// Keluarga warnanya. Ini bagian kontrak yang utama: konsumen yang punya
+    /// tema sendiri memetakan `keluarga` ke gaya miliknya.
+    keluarga: String,
+    /// Warna bawaan `ticon`. Boleh diabaikan sepenuhnya.
+    warna: String,
+    /// Petunjuk lebar sel glyph; keputusan akhir tetap di aplikasi.
+    lebar: usize,
+    /// Teks pengganti kalau glyph tidak bisa ditampilkan (mis. tanpa
+    /// Nerd Font).
+    fallback: String,
+}
 
-    for (keluarga, warna) in &rules.families {
-        println!("keluarga\t{keluarga}\t-\t-\t-\t{warna}");
+/// `--export`: seluruh aturan ke stdout, TSV atau JSON.
+///
+/// Keduanya dibangun dari daftar [`AturanEkspor`] yang sama, jadi isi ekspor
+/// hanya ada di satu tempat.
+fn print_export(rules: &Rules, glyphs: &Glyphs, format: Format) {
+    let aturan = aturan_ekspor(rules, glyphs);
+    match format {
+        Format::Tsv => print_export_tsv(rules, &aturan),
+        Format::Json => print_export_json(rules, glyphs, &aturan),
     }
+}
+
+fn aturan_ekspor(rules: &Rules, glyphs: &Glyphs) -> Vec<AturanEkspor> {
+    let baris = |prioritas: Option<Prioritas>,
+                 jenis: &'static str,
+                 kunci: &str,
+                 glyph: &str,
+                 keluarga: &str,
+                 lebar: usize,
+                 fallback: &str| AturanEkspor {
+        prioritas,
+        jenis,
+        kunci: kunci.to_string(),
+        glyph: glyph.to_string(),
+        codepoint: glyphs.get(glyph).map(|c| c as u32),
+        keluarga: keluarga.to_string(),
+        warna: rules.color_of(keluarga).to_string(),
+        lebar,
+        fallback: fallback.to_string(),
+    };
+
+    let mut keluar = Vec::new();
     for category in rules.categories.values() {
+        let lebar = category.lebar.unwrap_or(render::LEBAR_GLYPH_BAWAAN);
+        let fallback = category.fallback.as_deref().unwrap_or("?");
+
         for ext in &category.ext {
             let glyph = category
                 .by_ext
                 .get(ext)
                 .cloned()
                 .unwrap_or_else(|| category.glyph.clone());
-            baris_export("ext", ext, &glyph, &category.family, rules, glyphs);
+            keluar.push(baris(
+                Some(Prioritas::Ekstensi),
+                Prioritas::Ekstensi.jenis(),
+                ext,
+                &glyph,
+                &category.family,
+                lebar,
+                fallback,
+            ));
         }
-        for nilai in &category.names {
-            baris_export(
-                "nama",
+        for (nilai, prioritas) in category
+            .names
+            .iter()
+            .map(|n| (n, Prioritas::Nama))
+            .chain(category.prefix.iter().map(|n| (n, Prioritas::Awalan)))
+            .chain(category.suffix.iter().map(|n| (n, Prioritas::Akhiran)))
+        {
+            keluar.push(baris(
+                Some(prioritas),
+                prioritas.jenis(),
                 nilai,
                 &category.glyph,
                 &category.family,
-                rules,
-                glyphs,
-            );
-        }
-        for nilai in &category.prefix {
-            baris_export(
-                "awalan",
-                nilai,
-                &category.glyph,
-                &category.family,
-                rules,
-                glyphs,
-            );
-        }
-        for nilai in &category.suffix {
-            baris_export(
-                "akhiran",
-                nilai,
-                &category.glyph,
-                &category.family,
-                rules,
-                glyphs,
-            );
+                lebar,
+                fallback,
+            ));
         }
     }
     for (nama, rule) in &rules.dirs {
-        baris_export("dir", nama, &rule.glyph, &rule.family, rules, glyphs);
+        keluar.push(baris(
+            None,
+            "dir",
+            nama,
+            &rule.glyph,
+            &rule.family,
+            render::LEBAR_GLYPH_BAWAAN,
+            "?",
+        ));
+    }
+    keluar
+}
+
+/// Bentuk TSV: datar, tanpa dependensi, enak dibaca `awk` dan skrip shell.
+/// Kolomnya tidak berubah sejak 0.3.0; JSON yang membawa skema.
+fn print_export_tsv(rules: &Rules, aturan: &[AturanEkspor]) {
+    println!("jenis\tkunci\tglyph\tcodepoint\tkeluarga\twarna");
+    for (keluarga, warna) in &rules.families {
+        println!("keluarga\t{keluarga}\t-\t-\t-\t{warna}");
+    }
+    for a in aturan {
+        let codepoint = a
+            .codepoint
+            .map(|c| format!("0x{c:x}"))
+            .unwrap_or_else(|| "-".to_string());
+        println!(
+            "{}\t{}\t{}\t{}\t{}\t{}",
+            a.jenis, a.kunci, a.glyph, codepoint, a.keluarga, a.warna
+        );
     }
 }
 
-fn baris_export(
-    jenis: &str,
-    kunci: &str,
-    glyph: &str,
-    keluarga: &str,
-    rules: &Rules,
-    glyphs: &Glyphs,
-) {
-    let codepoint = glyphs
-        .get(glyph)
-        .map(|c| format!("0x{:x}", c as u32))
-        .unwrap_or_else(|| "-".to_string());
+/// Bentuk JSON: kontrak netral untuk konsumen non-Rust.
+///
+/// Yang membuatnya netral: urutan resolver ikut keluar sebagai angka
+/// (`priority`), warna bawaan tinggal satu field yang boleh diabaikan, dan
+/// lebar sel serta glyph pengganti ikut dibawa. Konsumen tidak perlu menebak
+/// urutan yang benar, tidak perlu memakai palet `ticon`, dan tidak wajib punya
+/// Nerd Font. Ditulis tangan supaya tidak menambah dependensi hanya untuk
+/// serialisasi.
+fn print_export_json(rules: &Rules, glyphs: &Glyphs, aturan: &[AturanEkspor]) {
+    println!("{{");
+    println!("  \"schema\": \"ticon-map/1\",");
+    println!("  \"lebar_default\": {},", render::LEBAR_GLYPH_BAWAAN);
+
+    let urutan: Vec<String> = [
+        Prioritas::Nama,
+        Prioritas::Akhiran,
+        Prioritas::Awalan,
+        Prioritas::Ekstensi,
+        Prioritas::Bawaan,
+    ]
+    .iter()
+    .map(|p| json_teks(p.jenis()))
+    .collect();
+    println!("  \"urutan\": [{}],", urutan.join(", "));
+
+    let keluarga: Vec<String> = rules
+        .families
+        .iter()
+        .map(|(nama, warna)| format!("{}: {}", json_teks(nama), json_teks(warna)))
+        .collect();
+    println!("  \"keluarga\": {{{}}},", keluarga.join(", "));
+
+    let bawaan = |nama_kategori: &str| -> String {
+        let Some(category) = rules.categories.get(nama_kategori) else {
+            return "null".to_string();
+        };
+        let warna = rules.color_of(&category.family);
+        let codepoint = glyphs
+            .get(&category.glyph)
+            .map(|c| (c as u32).to_string())
+            .unwrap_or_else(|| "null".to_string());
+        format!(
+            "{{\"glyph\": {}, \"codepoint\": {codepoint}, \"keluarga\": {}, \"warna\": {}, \"fallback\": \"?\"}}",
+            json_teks(&category.glyph),
+            json_teks(&category.family),
+            json_teks(warna)
+        )
+    };
     println!(
-        "{jenis}\t{kunci}\t{glyph}\t{codepoint}\t{keluarga}\t{}",
-        rules.color_of(keluarga)
+        "  \"bawaan\": {{\"berkas\": {}, \"folder\": {}}},",
+        bawaan(mapping::DEFAULT_FILE_CATEGORY),
+        bawaan(mapping::DEFAULT_DIR_CATEGORY)
     );
+
+    println!("  \"aturan\": [");
+    let total = aturan.len();
+    for (index, a) in aturan.iter().enumerate() {
+        let prioritas = a
+            .prioritas
+            .map(|p| p.angka().to_string())
+            .unwrap_or_else(|| "null".to_string());
+        let codepoint = a
+            .codepoint
+            .map(|c| c.to_string())
+            .unwrap_or_else(|| "null".to_string());
+        let koma = if index + 1 < total { "," } else { "" };
+        println!(
+            "    {{\"jenis\": {}, \"priority\": {prioritas}, \"kunci\": {}, \"keluarga\": {}, \"warna\": {}, \"glyph\": {}, \"codepoint\": {codepoint}, \"lebar\": {}, \"fallback\": {}}}{koma}",
+            json_teks(a.jenis),
+            json_teks(&a.kunci),
+            json_teks(&a.keluarga),
+            json_teks(&a.warna),
+            json_teks(&a.glyph),
+            a.lebar,
+            json_teks(&a.fallback),
+        );
+    }
+    println!("  ]");
+    println!("}}");
+}
+
+/// Bungkus `teks` sebagai string JSON, meloloskan karakter yang perlu.
+fn json_teks(teks: &str) -> String {
+    let mut out = String::with_capacity(teks.len() + 2);
+    out.push('"');
+    for c in teks.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => {
+                let _ = write!(out, "\\u{:04x}", c as u32);
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }
 
 /// Cetak daftar nilai dengan pembungkusan baris, menjorok di bawah labelnya.

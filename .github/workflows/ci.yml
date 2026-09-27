@@ -43,8 +43,23 @@ jobs:
       - name: Clippy (tanpa peringatan)
         run: cargo clippy --all-targets -- -D warnings
 
-      - name: Test (termasuk audit pemetaan dan uji e2e)
+      - name: Test (termasuk audit pemetaan, konformasi, dan uji e2e)
         run: cargo test
+
+      # Resolver TypeScript di examples/ts/ dibandingkan dengan korpus yang sama
+      # yang dipakai tes Rust. Ini yang membuat "peta ini benar" bisa dibuktikan
+      # di bahasa lain, tanpa `ticon` sebagai dependency runtime.
+      - name: Konformasi TypeScript
+        if: runner.os == 'Linux'
+        run: |
+          cargo run --quiet -- --export=json > target/icons.json
+          if node --help 2>&1 | grep -q experimental-strip-types; then
+            node --experimental-strip-types examples/ts/cek.ts \
+              target/icons.json tests/konformasi/nama.txt tests/konformasi/harapan.tsv
+          else
+            node examples/ts/cek.ts \
+              target/icons.json tests/konformasi/nama.txt tests/konformasi/harapan.tsv
+          fi
 
       - name: Audit ikon
         run: cargo run -- --audit
