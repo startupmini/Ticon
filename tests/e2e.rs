@@ -58,14 +58,17 @@ fn daftar_pack_menghasilkan_kolom_tab_yang_bisa_dipotong() {
 
     let baris = teks
         .lines()
-        .find(|b| b.starts_with("uji\t"))
+        .find(|b| b.starts_with("uji"))
         .unwrap_or_else(|| panic!("baris pack `uji` tidak ada di:\n{teks}"));
+    // Lima kolom: nama, asal, versi, keterangan, penulis. Pemisahnya tab
+    // sungguhan - itulah yang membuat `cut -f3` berguna.
     let kolom: Vec<&str> = baris.split('\t').collect();
-    assert_eq!(kolom.len(), 4, "kolom: {kolom:?}");
-    assert_eq!(kolom[0], "uji");
+    assert_eq!(kolom.len(), 5, "kolom: {kolom:?}");
+    assert_eq!(kolom[0].trim(), "uji");
     assert!(kolom[1].ends_with("pack.json"), "asal: {}", kolom[1]);
     assert_eq!(kolom[2], "2.1.0");
-    assert_eq!(kolom[3], "pack uji\t(t)");
+    assert_eq!(kolom[3], "pack uji");
+    assert_eq!(kolom[4], "(t)");
 }
 
 #[test]
