@@ -90,7 +90,11 @@ jobs:
 
   # Publikasi ke crates.io.
   #
-  # `environment` berarti job ini menunggu persetujuan manual di GitHub.
+  # DUA PERSIAPAN di sisi repo, tanpa ini job ini tidak benar-benar aman:
+  #   1. secret `CARGO_REGISTRY_TOKEN` (token dari crates.io).
+  #   2. environment `crates-io` dengan *required reviewers* — tanpa itu
+  #      `environment:` hanya jadi label dan job berjalan otomatis.
+  #
   # Alasannya: `cargo publish` tidak bisa dibatalkan, jadi tidak boleh berjalan
   # diam-diam hanya karena sebuah tag masuk. Tag tetap memicu workflow ini;
   # yang menunggu manusia adalah saat mengunggah.
