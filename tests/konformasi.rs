@@ -92,6 +92,9 @@ fn resolver_rust_sesuai_korpus() {
              TICON_REGENERASI=1 cargo test --test konformasi"
         )
     });
+    // End-of-line dinormalkan dulu: checkout di Windows bisa mengubahnya jadi
+    // CRLF, dan itu bukan divergensi isi yang mau diuji.
+    let harapan = harapan.replace("\r\n", "\n");
     assert_eq!(
         sekarang, harapan,
         "resolver Rust menyimpang dari korpus konformasi. Kalau ini disengaja, \

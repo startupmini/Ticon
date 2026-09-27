@@ -34,7 +34,9 @@ const baris: string[] = readFileSync(berkasNama, "utf8")
   });
 
 const sekarang = baris.join("\n") + "\n";
-const harapan = readFileSync(berkasHarapan, "utf8");
+// End-of-line dinormalkan: checkout di Windows bisa mengubahnya jadi CRLF, dan
+// itu bukan divergensi isi yang mau diuji.
+const harapan = readFileSync(berkasHarapan, "utf8").replaceAll("\r\n", "\n");
 
 if (sekarang === harapan) {
   console.log(`konformasi TypeScript: ${baris.length} entri cocok dengan korpus`);
