@@ -1,0 +1,23 @@
+{
+  "$schema": "https://ticon.pages.dev/schema/ticon-pack-1.json",
+  "schema": "ticon-pack/1",
+  "pack": {
+    "name": "sempit",
+    "version": "1.0.0",
+    "description": "Bentuk yang PASTI satu sel di semua terminal: semua karakter punya East_Asian_Width N atau Na. Lebih membosankan dari pack 'shape', tapi kolom TUI tidak bergeser di terminal mana pun, dan tidak butuh Nerd Font.",
+    "author": "ticon",
+    "license": "MIT",
+    "min_ticon": "0.4.3"
+  },
+  "shapes": {
+    "kode": "=",
+    "kerja": ">",
+    "dokumen": "?",
+    "data": ".",
+    "media": "*",
+    "aman": "♦",
+    "netral": "<",
+    "redup": "▪"
+  },
+  "folder_shape": "|"
+}

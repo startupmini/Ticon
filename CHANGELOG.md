@@ -8,20 +8,47 @@ mengikuti [Keep a Changelog](https://keepachangelog.com/), versinya
 
 ### Ditambahkan
 
-- **`--icons shape`**: mode tanpa Nerd Font. Bentuk satu sel per keluarga
-  warna (`≡ → ● § ▲ ♦ □ ▪`, dan `▼` untuk folder), dipilih dari karakter yang
-  **terbukti** ada di font dasar — `tools/audit-font.py` mengeceknya ke tujuh
-  font yang biasa ada di Windows dan keluar dengan error kalau ada yang tidak
-  ada. Alasannya: glyph Nerd Font ada di codepoint private-use, jadi pengguna
-  tanpa font itu melihat kotak, dan program tidak bisa mendeteksinya dari
-  dalam proses.
+- **Icon pack** (`--icons-pack <nama>`, `--icons-list-packs`): berkas yang
+  menimpa **sebagian** peta ikon dan digabung di atas peta dasar. Aturan dengan
+  pasangan (tahap, kunci) yang sama **diganti**, bukan ditumpuk — jadi mengganti
+  lima ekstensi cukup lima baris, bukan menyalin ulang peta 150 KiB.
+  Berbeda dengan `--icons-map` yang peta lengkapnya sendiri.
+  Skema: `schema/ticon-pack-1.json` (`ticon-pack/1`).
+- **Dua pack bawaan** untuk terminal tanpa Nerd Font: `shape` (bentuk satu sel
+  per keluarga warna) dan `sempit` (tambahan syarat `East_Asian_Width` N/Na,
+  jadi satu sel di semua terminal). Keduanya **di-audit di CI** pada job Windows
+  lewat `tools/audit-pack.py` — yang juga bisa dipakai untuk pack milik sendiri.
+- **`Icon.shape`** di pustaka: bentuk cadangan dari pack, terpisah dari
+  `Icon.ch` yang tetap Nerd Font. Pemanggil yang punya font tidak pernah
+  diam-diam mendapat bentuk.
+- **`Rules::icon_for_dengan_shape` / `icon_for_dir_dengan_shape`**, plus
+  `Rules::family_dari_warna`.
+- **`Glyphs::chars()`** untuk memeriksa karakter glyph tanpaazu nama.
+- **`Muat`**: satu pintu masuk memuat peta dasar + pack, untuk konsumen TUI yang
+  butuh daftar ikon yang sudah digabung.
+
+### Diperbaiki
+
+- **Dokumentasi untuk CLI yang tidak pernah ada.** Rilis sebelumnya menambahkan
+  `--icons shape` ke README, padahal hanya alat audit yang ikut — implementasi
+  bentuknya tidak pernah masuk repo. README sekarang menunjuk
+  `--icons-pack shape` / `--icons-pack sempit`, dan keduanya benar-benar ada
+  (lihat bagian "Ditambahkan" di atas), lengkap dengan tesnya.
+
+### Ditambahkan
+
+- **`--icons-pack shape` / `--icons-pack sempit`**: mode tanpa Nerd Font.
+  Bentuk satu sel per keluarga warna, atau — kalau kolom TUI tidak boleh
+  bergeser — bentuk yang `East_Asian_Width`-nya cuma `N`/`Na`.
+  Di-audit di CI pada job Windows (`tools/audit-pack.py`), dan tes di
+  `tests/pack.rs` menjaga karakternya tidak pernah jadi PUA atau glyph Nerd
+  Font — kalau begitu, "tidak butuh font" cuma jadi bohong.
 - **Subset font Nerd Fonts ikut dikemas** (`assets/raster.ttf`, 14,1 KiB dari
   2,2 MB; 55 glyph). Bukan untuk jalur karakter — terminal tetap memakai font
-  miliknya sendiri — tapi sebagai input jalur render half-block, supaya
-  konsumen tidak perlu mengunduh 2,2 MB.
-  `tests/subset-font.rs` menjaga subset itu tetap pas: gagal kalau
-  `icons.toml` memakai glyph yang tidak ada di subset, dan juga kalau subsetnya
-  membawa glyph yang tidak terpakai.
+  miliknya sendiri — tapi sebagai input jalur render half-block someday, supaya
+  konsumen tidak perlu mengunduh 2,2 MB. `tests/subset-font.rs` menjaga subset
+  itu tetap pas: gagal kalau `icons.toml` memakai glyph yang tidak ada di
+  subset, dan juga kalau subsetnya membawa glyph yang tidak terpakai.
 - **`tools/gen-raster.py`**: membuat subset dan `src/raster_data.rs` dari
   `icons.toml`, dengan verifikasi SHA-256 arsip upstream.
 

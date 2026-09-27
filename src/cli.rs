@@ -29,6 +29,8 @@ Opsi:
         --export           cetak semua aturan (--export=json atau --format json)
       --format <bentuk>  bentuk --export: tsv (bawaan) atau json
       --icons-map <f>    pakai peta ikon netral (ticon-map/2), bukan icons.toml
+     --icons-pack <n>   gabung icon pack (shape | sempit | nama milikmu)
+  --icons-list-packs    tampilkan pack yang tersedia
     -h, --help             tampilkan bantuan ini
     -V, --version          tampilkan versi
 
@@ -37,6 +39,7 @@ Lingkungan:
     CLICOLOR_FORCE     paksa warna kalau bukan \"0\"
     TICON_ICONS         nilai bawaan untuk --icons
     TICON_COLOR         nilai bawaan untuk --color
+    TICON_PACKS         daftar direktori pack, dipisah \";\" (Windows) atau \":\"
     COLUMNS            lebar terminal kalau tidak bisa dideteksi
 
 Contoh:
@@ -44,10 +47,19 @@ Contoh:
     ticon -a --sort size
     ticon --list | grep cyan
     ticon --audit
+    ticon --icons-pack sempit
 
 Ikon memakai glyph Nerd Fonts, jadi font terminal kamu perlu versi yang sudah
 di-patch. Warna memakai 16 warna ANSI terminal, jadi paletnya ikut berubah
 saat kamu ganti theme terminal.
+
+Kalau terminalmu tidak punya Nerd Font, pakai pack bawaan: `shape` (bentuk satu
+sel per keluarga warna) atau `sempit` (bentuk yang pasti satu sel di semua
+terminal). Keduanya tidak butuh font apa pun.
+
+Pack milikmu diletakkan di `./ticon-packs/<nama>/pack.json`,
+`%LOCALAPPDATA%\\ticon-packs\\<nama>\\pack.json` (Windows),
+`~/.local/share/ticon/packs/<nama>/pack.json`, atau `~/.config/ticon/packs/`.
 
 Kalau terminalnya tidak terdeteksi sebagai terminal (misalnya MinTTY di Git
 Bash), ikon dan warna dimatikan otomatis. Pakai `--icons always`, atau set
@@ -89,6 +101,8 @@ pub struct Options {
     /// Peta ikon netral (`ticon-map/2`) yang dipakai, bukan `icons.toml`
     /// bawaan. `None` = bawaan.
     pub icons_map: Option<PathBuf>,
+    /// Icon pack yang digabung di atas peta dasar. `None` = tanpa pack.
+    pub icons_pack: Option<String>,
 }
 
 /// Perintah yang bisa diminta ke `ticon`, hasil parsing argumen.
@@ -109,6 +123,8 @@ pub enum Command {
     /// Cetak seluruh aturan ke stdout, dalam bentuk yang diminta, memakai peta
     /// bawaan atau peta netral yang diminta pengguna.
     Export(Format, Option<PathBuf>),
+    /// Cetak pack yang bisa ditemukan: nama, versi, asal, dan keterangan.
+    ListPacks,
     /// Cetak bantuan dan keluar.
     Help,
     /// Cetak versi dan keluar.
@@ -205,6 +221,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Command {
         sort: Sort::Name,
         width: None,
         icons_map: None,
+        icons_pack: None,
     };
 
     // `None` berarti belum ditentukan; nilai bawaan diambil dari lingkungan
@@ -307,6 +324,14 @@ pub fn parse(args: impl Iterator<Item = String>) -> Command {
             "--icons-map" => take_value("--icons-map").map(|value| {
                 options.icons_map = Some(PathBuf::from(value));
             }),
+            "--icons-pack" => take_value("--icons-pack").and_then(|value| {
+                if value.is_empty() {
+                    return Err("opsi --icons-pack butuh nama pack".to_string());
+                }
+                options.icons_pack = Some(value);
+                Ok(())
+            }),
+            "--icons-list-packs" => return Command::ListPacks,
             "--icons" => take_value("--icons").and_then(|value| {
                 icon_mode = Some(Mode::parse(&value)?);
                 Ok(())

@@ -142,7 +142,75 @@ Dua pemenang yang sering ditanyakan:
   supaya `.test.ts` menang atas `.ts`;
 * `arsip.tar.gz` → **arsip**, bukan `.gz` biasa — ekstensi terpanjang menang.
 
-## Peta netral (`ticon-map/2`)
+## Icon pack (`ticon-pack/1`)
+
+Berbeda dengan peta netral, pack berisi **sebagian** dan digabung di atas
+peta dasar. Aturan dengan pasangan (tahap, kunci) yang sudah ada **diganti**,
+bukan ditumpuk — jadi "ganti lima ekstensi" cukup lima baris, bukan
+menyalin ulang peta 150 KiB.
+```json
+{
+  "schema": "ticon-pack/1",
+  "pack": {
+    "name": "nord",
+    "version": "1.0.0",
+    "description": "Ikon lebih jú, satu warna per keluarga",
+    "author": "kamu",
+    "license": "MIT",
+    "min_ticon": "0.4.3"
+  },
+  "families": { "kode": "blue" },
+  "rules": [
+    { "kind": "ext", "key": ".log", "family": "redup", "glyph": "nf-md-file_outline" },
+    { "kind": "dir", "key": "tests", "family": "kerja", "glyph": "nf-md-folder_outline" }
+  ]
+}
+```
+
+Semua bagian opsional kecuali `schema` dan `pack` (`name` + `version` wajib).
+`families` dibaca lebih dulu, jadi `rules` boleh memakai keluarga yang baru
+ditambahkan pack yang sama. Skema lengkapnya ada di
+`schema/ticon-pack-1.json`.
+
+### Bentuk cadangan (`shapes`)
+
+`shapes` memetakan **keluarga** ke satu karakter, dipakai kalau glyph Nerd
+Font tidak bisa digambar. `folder_shape` untuk folder. Keduanya harus tepat
+satu karakter: dua karakter membuat janji "satu sel" jadi bohong dan merusak
+kolom.
+//!
+//! ```json
+//! { "shapes": { "kode": "≡", "aman": "♦" }, "folder_shape": "▼" }
+//! ```
+//!
+//! Audit keduanya dengan:
+```bash
+python tools/audit-pack.py            # ada di 7 font dasar Windows?
+python tools/audit-pack.py --sempit   # plus: EAW N/Na, jadi tidak pernah 2 sel?
+python tools/audit-pack.py --hanya sempit --sempit   # hanya satu pack
+```
+
+Pack bawaan: `shape` (terbukti ada di semua font dasar) dan `sempit` (tambahan
+syarat `East_Asian_Width` N/Na, jadi satu sel di semua terminal). Keduanya
+di-audit di CI pada job Windows, jadi klaim di README tidak bisa lapuk
+diam-diam.
+
+### Penfindingan
+
+Urutan ini bagian dari kontrak, bukan kebetulan: `$TICON_PACKS`, lalu
+`./ticon-packs/`, lalu `%LOCALAPPDATA%\ticon-packs\` (Windows),
+`~/.local/share/ticon/packs/`, lalu `~/.config/ticon/packs/`. Pack bawaan
+menang lebih dulu supaya `--icons-pack shape` selalu berarti yang tertanam.
+
+Nama yang memuat `/`, `\`, atau berakhiran `.json` diperlakukan sebagai path
+langsung, jadi pack dari mana pun bisa dicoba tanpa opsi terpisah.
+
+Yang **ditolak**, bukan diabaikan: kunci tak dikenal di semua tingkat,
+karakter kontrol/bidi di setiap string, keluarga/warna yang tidak ada,
+glyph yang tidak dikenal, nilai `shapes` yang bukan satu karakter, `min_ticon`
+yang lebih baru, dan dua aturan kembar dalam satu pack.
+
+## Pemetaan netral (`ticon-map/2`)
 
 Selain `icons.toml`, peta bisa juga hidup sebagai satu berkas JSON berversi —
 kontrak netral untuk konsumen yang bukan Rust:

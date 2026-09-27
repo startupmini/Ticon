@@ -37,6 +37,7 @@ pub mod cli;
 pub mod glyph;
 pub mod json;
 pub mod mapping;
+pub mod pack;
 pub mod peta;
 pub mod raster_data;
 pub mod render;
@@ -71,6 +72,8 @@ pub const SKEMA_URL: &str = "https://ticon.pages.dev/schema/ticon-map-2.json";
 use render::Item;
 use unicode_width::UnicodeWidthStr;
 
+use crate::pack::{Bentuk, Meta};
+
 /// Jalankan perintah: parse argumen dari [`std::env::args`], kerjakan, lalu
 /// kembalikan exit code-nya. Titik masuk perintah `ticon`.
 pub fn run() -> ExitCode {
@@ -83,14 +86,56 @@ pub fn run() -> ExitCode {
     }
 }
 
-/// Muat peta ikon: dari `icons.toml` bawaan, atau dari peta netral yang diminta
-/// pengguna dengan `--icons-map`. Satu pintu masuk supaya semua perintah
-/// memakai sumber yang sama.
-fn muat_rules(map: &Option<PathBuf>) -> Result<Rules, String> {
-    match map {
-        Some(path) => peta::rules_dari_berkas(path),
-        None => Rules::load(),
+/// Semua icon yang dipakai di satu tampilan: peta, bentuk cadangan, dan pack
+/// yang dipilih.
+///
+/// Bentuk sengaja di sini, bukan di dalam [`Rules`], karena bentuk cuma perlu
+/// kalau glyph Nerd Font tidak bisa digambar — dan pemanggil TUI yang punya
+/// font sendiri tidak pernahFQ perlu settling vecinya.
+pub struct Muat {
+    /// Peta ikon yang dipakai (bawaan, atau peta netral + pack).
+    pub rules: Rules,
+    /// Bentuk cadangan dari pack, kalau ada.
+    pub bentuk: Bentuk,
+    /// Metadata pack, kalau ada pack.
+    pub meta: Option<Meta>,
+}
+
+impl Muat {
+    /// Muat peta dasar saja: `icons.toml` atau peta netral dari `--icons-map`.
+    pub fn dasar(map: &Option<PathBuf>) -> Result<Self, String> {
+        let rules = match map {
+            Some(path) => peta::rules_dari_berkas(path)?,
+            None => Rules::load()?,
+        };
+        Ok(Self {
+            rules,
+            bentuk: Bentuk::kosong(),
+            meta: None,
+        })
     }
+
+    /// Terapkan pack di atas peta yang sudah dimuat. Pack terakhir menang, dan
+    /// pack bisa menimpa pack sebelumnya lewat aturan yang sama.
+    pub fn dengan_pack(self, nama: &str) -> Result<Self, String> {
+        let pack = pack::muat_nama(nama, &self.rules)?;
+        Ok(Self {
+            rules: pack.rules,
+            bentuk: pack.bentuk,
+            meta: Some(pack.meta),
+        })
+    }
+}
+
+/// Muat peta ikon: dari `icons.toml` bawaan, atau dari peta netral yang diminta
+/// pengguna dengan `--icons-map`, lalu digabung dengan icon pack kalau ada.
+/// Satu pintu masuk supaya semua perintah memakai sumber yang sama.
+fn muat_semua(map: &Option<PathBuf>, icons_pack: &Option<String>) -> Result<Muat, String> {
+    let mut muat = Muat::dasar(map)?;
+    if let Some(nama) = icons_pack {
+        muat = muat.dengan_pack(nama)?;
+    }
+    Ok(muat)
 }
 
 fn execute() -> Result<ExitCode, String> {
@@ -107,43 +152,88 @@ fn execute() -> Result<ExitCode, String> {
             println!("ticon {}", env!("CARGO_PKG_VERSION"));
             Ok(ExitCode::SUCCESS)
         }
+        Command::ListPacks => {
+            print_list_packs();
+            Ok(ExitCode::SUCCESS)
+        }
         Command::Error(message) => Err(format!("{message}\n\nCoba `ticon --help`")),
         Command::Audit(icons_map) => {
-            let rules = muat_rules(&icons_map)?;
+            let rules = muat_semua(&icons_map, &None)?.rules;
             let glyphs = Glyphs::bundled();
             audit(&rules, &glyphs)
         }
         Command::Explain(name, icons_map) => {
-            let rules = muat_rules(&icons_map)?;
+            let rules = muat_semua(&icons_map, &None)?.rules;
             let glyphs = Glyphs::bundled();
             print_explain(&rules, &glyphs, &name);
             Ok(ExitCode::SUCCESS)
         }
         Command::Export(format, icons_map) => {
-            let rules = muat_rules(&icons_map)?;
+            let rules = muat_semua(&icons_map, &None)?.rules;
             let glyphs = Glyphs::bundled();
             print_export(&rules, &glyphs, format);
             Ok(ExitCode::SUCCESS)
         }
         Command::Mapping(options) => {
             cek_tanpa_path("--list", &options)?;
-            let rules = muat_rules(&options.icons_map)?;
+            let muat = muat_semua(&options.icons_map, &options.icons_pack)?;
             let glyphs = Glyphs::bundled();
-            print_mapping(&rules, &glyphs, &options);
+            print_mapping(&muat.rules, &glyphs, &options);
             Ok(ExitCode::SUCCESS)
         }
         Command::Gallery(options) => {
             cek_tanpa_path("--gallery", &options)?;
-            let rules = muat_rules(&options.icons_map)?;
+            let muat = muat_semua(&options.icons_map, &options.icons_pack)?;
             let glyphs = Glyphs::bundled();
-            print_gallery(&rules, &glyphs, &options);
+            print_gallery(&muat.rules, &glyphs, &options, &muat.bentuk);
             Ok(ExitCode::SUCCESS)
         }
         Command::Dir(options) => {
-            let rules = muat_rules(&options.icons_map)?;
+            let muat = muat_semua(&options.icons_map, &options.icons_pack)?;
             let glyphs = Glyphs::bundled();
-            list(&rules, &glyphs, &options)
+            list(&muat.rules, &glyphs, &options, &muat.bentuk)
         }
+    }
+}
+
+/// Cetak pack yang ditemukan: nama, versi, asal, dan keterangan.
+///
+/// Kolomnya tab-separated, seperti `--export` TSV, supaya `ticon
+/// --icons-list-packs | cut -f1` berguna untuk skrip.
+fn print_list_packs() {
+    let packs = pack::daftar();
+    let lebar = packs
+        .iter()
+        .map(|info| UnicodeWidthStr::width(info.nama.as_str()))
+        .chain(std::iter::once(UnicodeWidthStr::width("PACK")))
+        .max()
+        .unwrap_or(4);
+    println!("{:<lebar$}\tASAL\tKETERANGAN", "PACK");
+
+    for info in packs {
+        let meta = match &info.meta {
+            Ok(meta) => {
+                let mut kolom = meta.versi.clone();
+                if let Some(deskripsi) = &meta.deskripsi {
+                    kolom.push('\t');
+                    kolom.push_str(deskripsi);
+                }
+                if let Some(penulis) = &meta.penulis {
+                    kolom.push_str(&format!("\t({penulis})"));
+                }
+                kolom
+            }
+            // Pack yang ada tapi gagal dimuat tetap ditampilkan, lengkap dengan
+            // alasannya:-pack yang diam-diam hilang dari daftar lebih buruk
+            // daripada pack yang terlihat rusak.
+            Err(pesan) => format!("GAGAL DIMUAT\t{pesan}"),
+        };
+        println!(
+            "{:<lebar$}\t{}\t{}",
+            info.nama,
+            info.asal.label(),
+            render::sanitize(&meta)
+        );
     }
 }
 
@@ -194,7 +284,12 @@ fn read_link_target(path: &Path) -> Option<String> {
         .map(|target| target.to_string_lossy().into_owned())
 }
 
-fn list(rules: &Rules, glyphs: &Glyphs, options: &Options) -> Result<ExitCode, String> {
+fn list(
+    rules: &Rules,
+    glyphs: &Glyphs,
+    options: &Options,
+    bentuk: &Bentuk,
+) -> Result<ExitCode, String> {
     let paths = if options.paths.is_empty() {
         vec![PathBuf::from(".")]
     } else {
@@ -235,7 +330,7 @@ fn list(rules: &Rules, glyphs: &Glyphs, options: &Options) -> Result<ExitCode, S
             sort_entries(&mut entries, options.sort);
             entries
                 .iter()
-                .map(|entry| render_entry(rules, glyphs, options, entry))
+                .map(|entry| render_entry(rules, glyphs, options, entry, bentuk))
                 .collect()
         } else {
             vec![render_entry(
@@ -243,6 +338,7 @@ fn list(rules: &Rules, glyphs: &Glyphs, options: &Options) -> Result<ExitCode, S
                 glyphs,
                 options,
                 &Entry::from_path(path, &metadata),
+                bentuk,
             )]
         };
 
@@ -304,7 +400,13 @@ fn extension_of(name: &str) -> String {
     }
 }
 
-fn render_entry(rules: &Rules, glyphs: &Glyphs, options: &Options, entry: &Entry) -> Item {
+fn render_entry(
+    rules: &Rules,
+    glyphs: &Glyphs,
+    options: &Options,
+    entry: &Entry,
+    bentuk: &Bentuk,
+) -> Item {
     let resolved = if entry.is_dir {
         rules.resolve_dir(&entry.name)
     } else {
@@ -315,7 +417,13 @@ fn render_entry(rules: &Rules, glyphs: &Glyphs, options: &Options, entry: &Entry
     let mut plain = String::new();
 
     if options.icons {
-        if let Some(glyph) = glyphs.get(&resolved.glyph) {
+        // Bentuk pack menang kalau ada: kalau pengguna memilih pack `shape` atau
+        // `sempit`, mereka memang meminta char itu — bukan glyph Nerd Font yang
+        // tidak bisa digambar di terminal mereka.
+        let glyph = bentuk
+            .untuk(rules, &resolved.color, entry.is_dir)
+            .or_else(|| glyphs.get(&resolved.glyph));
+        if let Some(glyph) = glyph {
             let cell = format!("{glyph} ");
             plain.push_str(&cell);
             painted.push_str(&render::paint(rules, options.color, &resolved.color, &cell));
@@ -350,7 +458,7 @@ fn render_entry(rules: &Rules, glyphs: &Glyphs, options: &Options, entry: &Entry
 /// dilewatkan ke resolver yang sama dengan yang dipakai `ticon` sehari-hari.
 /// Jadi yang kamu lihat di sini bukan gambar atas nama desain — itu memang
 /// hasil yang akan keluar.
-fn print_gallery(rules: &Rules, glyphs: &Glyphs, options: &Options) {
+fn print_gallery(rules: &Rules, glyphs: &Glyphs, options: &Options, bentuk: &Bentuk) {
     let mut examples: Vec<(String, String, bool)> = Vec::new();
 
     for name in rules.dirs.keys() {
@@ -373,7 +481,7 @@ fn print_gallery(rules: &Rules, glyphs: &Glyphs, options: &Options) {
         }
     }
 
-    let mut rows: Vec<(String, String, String, String)> = Vec::new();
+    let mut rows: Vec<(String, String, String, String, bool)> = Vec::new();
     for (example, label, is_dir) in examples {
         let resolved = if is_dir {
             rules.resolve_dir(&example)
@@ -383,7 +491,7 @@ fn print_gallery(rules: &Rules, glyphs: &Glyphs, options: &Options) {
         if resolved.glyph.is_empty() {
             continue;
         }
-        rows.push((example, label, resolved.glyph, resolved.color));
+        rows.push((example, label, resolved.glyph, resolved.color, is_dir));
     }
 
     let example_width = rows
@@ -402,11 +510,28 @@ fn print_gallery(rules: &Rules, glyphs: &Glyphs, options: &Options) {
         rows.len(),
         glyphs.len()
     );
+    if !bentuk.is_kosong() {
+        // Marketplace yang jujur: kalau pack yang dipakai hanya menimpa sebagian
+        // keluarga, sebutkan itu. diam-diam menampilkan bentuk untuk semua
+        // ikon akan membuat pengguna mengira pack-nya bekerja lebih luas dari
+        // yang sebenarnya.
+        println!(
+            "bentuk: {} (dari pack; {} karakter)",
+            bentuk.semua_karakter().len(),
+            bentuk
+                .semua_karakter()
+                .iter()
+                .map(|c| c.to_string())
+                .collect::<Vec<_>>()
+                .join(" ")
+        );
+    }
     println!();
-    for (example, label, glyph_name, color) in &rows {
-        let character = glyphs
-            .get(glyph_name)
+    for (example, label, glyph_name, color, is_dir) in &rows {
+        let character = bentuk
+            .untuk(rules, color, *is_dir)
             .map(|value| value.to_string())
+            .or_else(|| glyphs.get(glyph_name).map(|value| value.to_string()))
             .unwrap_or_else(|| "?".to_string());
         let icon = render::paint(rules, options.color, color, &character);
         // Pad dulu, baru warnai — kalau escape ANSI yang ikut dihitung saat
@@ -949,6 +1074,7 @@ mod tests {
             sort: Sort::Name,
             width: None,
             icons_map: None,
+            icons_pack: None,
         }
     }
 
@@ -982,7 +1108,7 @@ mod tests {
         };
         let opsi = options_plain();
 
-        let item = render_entry(&rules, &glyphs, &opsi, &entry);
+        let item = render_entry(&rules, &glyphs, &opsi, &entry, &Bentuk::kosong());
 
         assert!(
             !item.painted.contains('\u{1b}') && !item.painted.contains('\u{202e}'),
@@ -1013,7 +1139,7 @@ mod tests {
         };
         let opsi = options_plain();
 
-        let item = render_entry(&rules, &glyphs, &opsi, &entry);
+        let item = render_entry(&rules, &glyphs, &opsi, &entry, &Bentuk::kosong());
 
         assert!(!item.painted.contains('\u{1b}'), "{:?}", item.painted);
         assert!(item.painted.contains("\\u{1b}"), "{:?}", item.painted);

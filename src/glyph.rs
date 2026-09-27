@@ -51,6 +51,11 @@ impl Glyphs {
         self.0.keys().map(String::as_str)
     }
 
+    /// Semua karakter glyph, terurut.
+    pub fn chars(&self) -> impl Iterator<Item = char> + '_ {
+        self.0.values().copied()
+    }
+
     /// Jumlah glyph yang tertanam.
     pub fn len(&self) -> usize {
         self.0.len()
