@@ -216,6 +216,35 @@ let penjelasan = rules.explain_file("app.test.ts");
 println!("{:?}", penjelasan.winner()); // Some(Kandidat { matched_by: Suffix, pattern: ".test.ts", .. })
 ```
 
+### TUI yang tidak boleh bergantung pada font
+
+Dua baris di bawah ini adalah seluruh biaya memakai `ticon` dari TUI Anda:
+nol dependensi tambahan, nol proses luar, nol pembacaan berkas saat berjalan.
+
+```rust
+use ticon::Muat;
+
+let bebas_font = Muat::bawaan()?.dengan_pack("sempit")?;
+
+match bebas_font.bentuk_untuk("main.rs", false) {
+    Some(bentuk) => sel_tulis(bentuk),   // satu sel, tidak perlu font apa pun
+    None => (),                          // tidak ada ikon - lebih jujur dari kotak
+}
+```
+
+`sempit` dan `shape` bedanya bukan selera: `shape` memakai karakter yang terbukti
+ada di font dasar Windows, tapi `East_Asian_Width`-nya ambigu sehingga bisa jadi
+dua sel di terminal yang dikonfigurasi *ambiguous = lebar*. `sempit` hanya memakai
+karakter `N`/`Na`, jadi tidak pernah. Keduanya **di-audit di CI**, jadi klaim "tidak
+perlu font" bisa dibuktikan, bukan dipercaya.
+
+Satu hal yang `ticon` sengaja tidak lakukan: mendeteksi apakah font-nya terpasang.
+Program tidak bisa tahu apa yang dipakai terminal, jadi tebakan otomatis akan salah
+pada separuh pengguna - pilihannya harus jadi **setelan** di TUI Anda.
+
+`cargo run --example tui` menampilkan kedua jalur berdampingan, jadi perbedaannya
+bisa dilihat tanpa perlu menebak.
+
 Untuk tool non-Rust, `ticon --export` mengeluarkan seluruh aturan sebagai TSV
 yang bisa langsung dibaca `awk` atau skrip shell.
 

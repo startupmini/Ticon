@@ -102,14 +102,19 @@ pub struct Muat {
 }
 
 impl Muat {
-    /// Muat peta dasar saja: `icons.toml` atau peta netral dari `--icons-map`.
-    pub fn dasar(map: &Option<PathBuf>) -> Result<Self, String> {
-        let rules = match map {
-            Some(path) => peta::rules_dari_berkas(path)?,
-            None => Rules::load()?,
-        };
+    /// Peta bawaan `ticon` saja, tanpa pack.
+    pub fn bawaan() -> Result<Self, String> {
         Ok(Self {
-            rules,
+            rules: Rules::load()?,
+            bentuk: Bentuk::kosong(),
+            meta: None,
+        })
+    }
+
+    /// Peta netral dari berkas (`ticon-map/2`), tanpa pack.
+    pub fn dari_peta(path: impl AsRef<std::path::Path>) -> Result<Self, String> {
+        Ok(Self {
+            rules: peta::rules_dari_berkas(path.as_ref())?,
             bentuk: Bentuk::kosong(),
             meta: None,
         })
@@ -125,13 +130,35 @@ impl Muat {
             meta: Some(pack.meta),
         })
     }
+
+    /// Bentuk cadangan untuk sebuah nama, kalau pack aktif menyediakannya.
+    ///
+    /// Ini jalur **bebas Nerd Font** untuk TUI: hasilnya `None` berarti "tidak
+    /// ada ikon" - bukan karakter sembarang, dan bukan juga glyph Nerd Font.
+    /// Pemanggil yang memakai fungsi ini sedang tidak ingin menampilkan kotak,
+    /// jadi ia wajib memperlakukan `None` sebagai ketiadaan ikon.
+    ///
+    /// Kalau pemanggil lebih suka satu fungsi yang selalu mengembalikan
+    /// sesuatu, pakai [`crate::mapping::Rules::icon_for_dengan_shape`] dan lihat
+    /// kedua field `Icon` (`ch` dan `shape`) secara terpisah.
+    pub fn bentuk_untuk(&self, nama: &str, folder: bool) -> Option<char> {
+        let resolved = if folder {
+            self.rules.resolve_dir(nama)
+        } else {
+            self.rules.resolve_file(nama)
+        };
+        self.bentuk.untuk(&self.rules, &resolved.color, folder)
+    }
 }
 
 /// Muat peta ikon: dari `icons.toml` bawaan, atau dari peta netral yang diminta
 /// pengguna dengan `--icons-map`, lalu digabung dengan icon pack kalau ada.
 /// Satu pintu masuk supaya semua perintah memakai sumber yang sama.
 fn muat_semua(map: &Option<PathBuf>, icons_pack: &Option<String>) -> Result<Muat, String> {
-    let mut muat = Muat::dasar(map)?;
+    let mut muat = match map {
+        Some(path) => Muat::dari_peta(path)?,
+        None => Muat::bawaan()?,
+    };
     if let Some(nama) = icons_pack {
         muat = muat.dengan_pack(nama)?;
     }
