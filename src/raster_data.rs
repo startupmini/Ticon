@@ -1,18 +1,13 @@
 //! DIHASILKAN OTOMATIS - jangan diedit tangan.
 //!
 //! Nama glyph yang dirujuk `icons.toml` -> codepoint-nya. Dipakai untuk
-//! menguji bahwa subset font di `assets/raster.ttf` masih lengkap, dan
-//! oleh jalur render half-block nanti.
+//! menguji bahwa font di `assets/ticon-icons.ttf` masih lengkap.
 //!
 //! Sumber: Nerd Fonts v3.5.1 (SIL OFL 1.1), DepartureMonoNerdFontMono-Regular.otf.
 //! SHA-256 arsip: 7d2d86db20730e26ee4fc926e3c64429d6f9da6fce91e74c325fe1c5ee74d9ee
-//! Regenerasi: python tools/gen-raster.py
+//! Regenerasi: python tools/gen-font.py
 
 /// Nama glyph yang dirujuk `icons.toml` -> codepoint-nya, terurut.
-///
-/// Dipakai untuk menguji kelengkapan subset font dan, nanti, oleh jalur
-/// render half-block. Daftarnya sengaja datar supaya bisa diperiksa dari
-/// tes tanpa perlu mengurai berkas TTF.
 pub const GLYPH: &[(&str, u32)] = &[
     ("nf-md-application_outline", 0xf0614),
     ("nf-md-book_open_page_variant", 0xf05da),
