@@ -30,14 +30,14 @@ jobs:
       tag: ${{ steps.pilih.outputs.tag }}
     steps:
       - id: pilih
-        run: echo "tag=${{ inputs.tag  github.ref_name }}"  "$GITHUB_OUTPUT"
+        run: echo "tag=${{ inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
 
       - name: Buat Rilis bila belum ada
         env:
           GH_TOKEN: ${{ github.token }}
-        run: 
+        run: |
           tag="${{ steps.pilih.outputs.tag }}"
-          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" /dev/null 2&1; then
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "rilis untuk $tag sudah ada — lanjut unggah aset"
           else
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" --title "ticon $tag" --generate-notes
@@ -71,14 +71,14 @@ jobs:
 
       - name: Kemas (tar.gz)
         if: runner.os != 'Windows'
-        run: 
+        run: |
           tar czf "ticon-${{ needs.rilis.outputs.tag }}-${{ matrix.target }}.tar.gz" \
             -C "target/${{ matrix.target }}/release" ticon
 
       - name: Kemas (zip)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: 
+        run: |
           Compress-Archive -Path "target/${{ matrix.target }}/release/ticon.exe" `
             -DestinationPath "ticon-${{ needs.rilis.outputs.tag }}-${{ matrix.target }}.zip"
 
@@ -88,18 +88,15 @@ jobs:
         shell: bash
         run: gh release upload "${{ needs.rilis.outputs.tag }}" --repo "$GITHUB_REPOSITORY" ticon-*.* --clobber
 
-  # Publikasi ke crates.io. `environment` berarti job ini menunggu persetujuan
-  # manual di GitHub — jadi rilis yang kemaju tidak diam-diam menerbitkan
-  # (dan gagal) tanpa ada yang menyadarinya.
+  # Publikasi ke crates.io.
   #
-  # `cargo publish` tidak bisa dibatalkan; itu sebabnya persetujuan manusia
-  # ada di sini, bukan di langkah terakhir workflow.
+  # `environment` berarti job ini menunggu persetujuan manual di GitHub.
+  # Alasannya: `cargo publish` tidak bisa dibatalkan, jadi tidak boleh berjalan
+  # diam-diam hanya karena sebuah tag masuk. Tag tetap memicu workflow ini;
+  # yang menunggu manusia adalah saat mengunggah.
   publish:
     needs: [rilis, build]
     runs-on: ubuntu-latest
-    # Tolak kalau ada job build yang gagal: jangan sampai terbitkan
-    # rilis yang biner-binernya belum ketemu.
-    if: success()
     environment: crates-io
     permissions:
       contents: read
@@ -113,15 +110,15 @@ jobs:
           toolchain: stable
 
       - name: Periksa versi di Cargo.toml cocok dengan tag
-        run: 
+        env:
+          TAG: ${{ needs.rilis.outputs.tag }}
+        run: |
           tag="${TAG#v}"
-          versi=$(grep -m1 '^version' Cargo.toml  cut -d'"' -f2)
+          versi=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
           if [ "$versi" != "$tag" ]; then
             echo "::error::versi di Cargo.toml ($versi) tidak cocok dengan tag ($tag)"
             exit 1
           fi
-        env:
-          TAG: ${{ needs.rilis.outputs.tag }}
 
       # Uji brake lebih dulu: kalau paketnya tidak bisa dipaketkan, lebih baik
       # gagal di sini daripada setengah jalan.
@@ -132,4 +129,3 @@ jobs:
         run: cargo publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-
