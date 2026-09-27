@@ -7,3 +7,6 @@ __pycache__/
 
 # Arsip proyek lain yang dipelajari sebagai referensi — tidak ikut dikirim.
 /Terminal-Icons-main.zip
+
+# cache font pratinjau (diunduh ulang oleh tools/unduh-font.py)
+.cache-preview/

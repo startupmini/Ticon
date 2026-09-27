@@ -7,15 +7,13 @@ diwarnai menurut kategori. Setiap ikon berasal dari satu keluarga glyph yang
 sama, dan paletnya cuma delapan warna — itulah yang membuatnya terasa tenang,
 bukan seperti daftar logo.
 
-```
-󰅩 src   󰙨 app.test.ts  󰟓 main.go  󰗚 README.md   󰞹 backup.tar.gz  󰯅 .env
-```
+![Contoh keluaran ticon](https://raw.githubusercontent.com/startupmini/Ticon/main/preview.svg)
 
-Kotak-kotak di baris itu **bukan ikon yang rusak** — itu soal font. Glyph Nerd
-Font hidup di codepoint private-use `U+F0000`–`U+F1AFF`, yang tidak dimiliki font
-apa pun yang terpasang di GitHub maupun crates.io, jadi di sana mereka selalu
-tampil sebagai kotak. Di terminal dengan Nerd Font terpasang, kotak itu
-justru ikon yang sebenarnya.
+Ikon memakai **Nerd Font**: glyph-nya ada di codepoint private-use
+`U+F0000`-`U+F1AFF`, yang tidak dimiliki font apa pun. Itulah sebabnya ikon di
+README ini berupa gambar dengan font-nya ikut ditanam — kalau ditulis sebagai
+teks, GitHub maupun crates.io akan menampilkannya sebagai kotak. Di terminal
+dengan Nerd Font terpasang, yang tampil adalah ikon aslinya.
 
 Karena itu, contoh kedua ini bisa dibaca di mana saja — tanpa glyph, dari
 pemetaan yang sama persis:

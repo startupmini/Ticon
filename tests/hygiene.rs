@@ -117,58 +117,51 @@ fn repo_tetap_satu_alfabet_latin() {
     );
 }
 
-/// Contoh ikon di README harus selalu cocok dengan pemetaan hari ini.
+/// Pratinjau ikon di README harus selalu cocok dengan pemetaan hari ini.
 ///
-/// Baris itu berisi glyph Nerd Font asli, jadi ia bisa basi diam-diam kalau
-/// data berubah: contoh masih menunjuk ikon lama tanpa ada yang salah. Tes ini
-/// menutupnya — kalau gagal, perbarui baris README dengan hasil
-/// `ticon --export` terbaru.
+/// Pratinjau itu berisi glyph Nerd Font asli di dalam `preview.svg`, jadi ia
+/// bisa basi diam-diam kalau data berubah: gambar masih menunjuk ikon lama
+/// tanpa ada yang salah. Tes ini menutupnya — kalau gagal, jalankan
+/// `python tools/gen-preview.py` lalu periksa bedanya.
 #[test]
-fn contoh_ikon_readme_sesuai_pemetaan() {
-    let readme = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("README.md"))
-        .expect("README.md harus bisa dibaca");
-    let baris = readme
+fn pratinjau_readme_sesuai_pemetaan() {
+    let svg = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("preview.svg"))
+        .expect("preview.svg harus ada; jalankan `python tools/gen-preview.py`");
+
+    // Isi pratinjau adalah keluaran `ticon` asli: satu ikon + satu nama per baris.
+    let baris: Vec<String> = svg
         .lines()
-        .find(|l| l.contains('\u{f0169}'))
-        .unwrap_or_else(|| {
-            panic!("baris contoh ikon tidak ketemu di README.md — mungkin sudah terhapus")
-        });
+        .filter_map(|l| l.trim().strip_prefix("<text x="))
+        .filter_map(|s| s.split_once('>').map(|(_, isi)| isi))
+        .map(|isi| isi.split("</text>").next().unwrap_or("").trim().to_string())
+        .collect();
+    assert!(!baris.is_empty(), "tidak ada baris ikon di preview.svg");
 
     let rules = ticon::mapping::Rules::load().expect("icons.toml harus bisa dibaca");
+    // Pratinjau menyimpan karakter; `Rules` menyimpan nama glyph. Jembatannya
+    // tabel glyph bawaan.
     let glyphs = ticon::glyph::Glyphs::bundled();
 
-    // Pasangan (nama berkas, glyph) seperti yang ditulis di README.
-    let pasangan: Vec<(&str, char)> = baris
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .windows(2)
-        .map(|w| {
-            (
-                w[1],
-                w[0].chars().next().expect("glyph harus punya karakter"),
-            )
-        })
-        .filter(|(nama, _)| nama.contains('.'))
-        .collect();
-    assert!(
-        !pasangan.is_empty(),
-        "tidak ada pasangan nama/glyph yang bisa diperiksa di baris README: {baris}"
-    );
+    for baris in &baris {
+        let dipisah: Vec<&str> = baris.split_whitespace().collect();
+        assert!(
+            dipisah.len() == 2,
+            "baris pratinjau harus ikon + nama: {baris}"
+        );
+        let glyph: char = dipisah[0].chars().next().expect("glyph harus ada");
+        let nama = dipisah[1];
 
-    for (nama, glyph) in pasangan {
-        let ini_folder = !nama.contains('.');
-        let harapan = if ini_folder {
-            rules.resolve_dir(nama).glyph
-        } else {
+        // Nama folder tidak selalu berekstensi, jadi dua-duanya dicoba: kalau
+        // salah satu cocok dengan glyph yang tertulis, baris ini benar.
+        let cocok = glyphs.get(&rules.resolve_dir(nama).glyph) == Some(glyph)
+            || glyphs.get(&rules.resolve_file(nama).glyph) == Some(glyph);
+        assert!(
+            cocok,
+            "pratinjau menyebut glyph U+{:04X} untuk `{nama}`, tapi pemetaan sekarang \
+             memakai folder={} / berkas={}",
+            glyph as u32,
+            rules.resolve_dir(nama).glyph,
             rules.resolve_file(nama).glyph
-        };
-        let kode_benar = glyphs.get(&harapan);
-        assert_eq!(
-            kode_benar,
-            Some(glyph),
-            "README menyebut glyph {glyph:?} untuk `{nama}`, tapi pemetaan sekarang \
-             memakai {harapan} (U+{:04X})",
-            glyph as u32
         );
     }
 }
