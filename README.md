@@ -45,7 +45,7 @@ yang diimpor.
 
 ```bash
 # dari tag rilis
-cargo install --git https://github.com/startupmini/Ticon --tag v0.1.0
+cargo install --git https://github.com/startupmini/Ticon --tag v0.1.1
 
 # atau langsung dari branch utama
 cargo install --git https://github.com/startupmini/Ticon
