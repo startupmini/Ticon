@@ -1,6 +1,6 @@
 # Konfigurasi
 
-Seluruh perilaku `ikon` — bentuk ikon, warnanya, dan berkas mana yang cocok —
+Seluruh perilaku `ticon` — bentuk ikon, warnanya, dan berkas mana yang cocok —
 hidup di satu file: [`icons.toml`](../icons.toml). Kode tidak memuat tabel
 kembar, jadi mustahil menambah ikon tanpa sekaligus memutuskan warnanya.
 
@@ -28,7 +28,7 @@ icons.toml
 
 Nilai adalah kode ANSI SGR, bukan warna truecolor. Konsekuensinya: palet
 otomatis mengikuti theme terminal kamu — ganti theme, ikon ikut berubah.
-`NO_COLOR`, `CLICOLOR_FORCE`, dan `IKON_COLOR` tetap berlaku. Nilainya harus
+`NO_COLOR`, `CLICOLOR_FORCE`, dan `TICON_COLOR` tetap berlaku. Nilainya harus
 angka: `load()` menolak apa pun yang bukan SGR numerik, karena kode itu masuk
 ke `\x1b[{kode}m` apa adanya.
 
@@ -79,7 +79,7 @@ Yang ditegakkan (di `load()`, `cargo test`, dan `--audit`):
   yang sama — `load()` menolak tabrakan seperti itu;
 * pemakaian `dim` maksimal `MAX_DIM_RULES` = 10 aturan.
 
-Ringkasan keluarga ini ikut tercetak oleh `ikon --list`, dan `ikon --gallery`
+Ringkasan keluarga ini ikut tercetak oleh `ticon --list`, dan `ticon --gallery`
 menampilkan satu contoh ikon per aturan — keduanya cara cepat meninjau dampak
 perubahan warna tanpa membaca file mentah.
 
@@ -160,7 +160,7 @@ Checklist:
 4. Glyph yang belum ada di `assets/glyphs.toml` harus diregenerasi dulu:
    `python tools/gen-glyphs.py` (butuh jaringan). Kalau lupa, `build.rs`
    menjelaskan persis glyph mana yang hilang.
-5. Jalankan `cargo test` dan `ikon --audit` — keduanya memeriksa hal yang sama.
+5. Jalankan `cargo test` dan `ticon --audit` — keduanya memeriksa hal yang sama.
 
 ## Yang ditegakkan mesin
 
@@ -168,7 +168,7 @@ Checklist:
 |---|---|
 | `build.rs` (saat compile) | glyph harus `nf-md-`/`nf-oct-` dan ada di `assets/glyphs.toml`; codepoint tidak boleh berupa karakter kontrol; peringatan untuk glyph yang tidak dipakai |
 | `cargo test` | batas 8 warna; konsistensi pemetaan; keluarga + bijeksi; ketetanggaan; batas `dim`; sanitasi output; parsing CLI; satu alfabet Latin untuk seluruh repo (`tests/hygiene.rs`); plus tes yang **sengaja melanggar aturan** untuk membuktikan setiap audit benar-benar melaporkan |
-| `ikon --audit` | seluruh pemeriksaan `audit()` dengan laporan; exit 1 bila ada temuan, exit 0 bila bersih |
+| `ticon --audit` | seluruh pemeriksaan `audit()` dengan laporan; exit 1 bila ada temuan, exit 0 bila bersih |
 
 Contoh laporan bila ada masalah:
 

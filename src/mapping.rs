@@ -99,7 +99,7 @@ pub enum MatchedBy {
 }
 
 impl MatchedBy {
-    /// Label siap tampil, untuk `ikon --explain` dan dokumentasi.
+    /// Label siap tampil, untuk `ticon --explain` dan dokumentasi.
     pub fn label(self) -> &'static str {
         match self {
             MatchedBy::WellKnownFolder => "folder well-known",
@@ -446,7 +446,7 @@ impl Rules {
 
     /// Semua aturan yang cocok untuk nama berkas, berurutan prioritas.
     /// Kosong berarti tidak ada aturan yang cocok dan kategori bawaan yang
-    /// dipakai. Inilah juga yang membuat `ikon --explain` bisa menunjukkan
+    /// dipakai. Inilah juga yang membuat `ticon --explain` bisa menunjukkan
     /// alasan, bukan cuma hasil.
     pub fn explain_file(&self, name: &str) -> Explanation {
         let key = name.to_lowercase();
@@ -552,7 +552,7 @@ impl Rules {
 
     /// Jumlah aturan (kategori + folder) yang memakai warna `dim`. Satu
     /// sumber angka ini dipakai audit, tes, dan angka yang dicetak
-    /// `ikon --audit` — supaya yang dicek dan yang dilaporkan tak bisa
+    /// `ticon --audit` — supaya yang dicek dan yang dilaporkan tak bisa
     /// berbeda karena salinan yang lupa diperbarui.
     pub fn dim_rules(&self) -> usize {
         self.categories
@@ -567,7 +567,7 @@ impl Rules {
     }
 
     /// Pemeriksaan konsistensi. Dipakai oleh `cargo test` DAN oleh
-    /// `ikon --audit`, jadi masalah pemetaan ketahuan sebelum dirilis, bukan
+    /// `ticon --audit`, jadi masalah pemetaan ketahuan sebelum dirilis, bukan
     /// setelah ada yang sadar ikonnya kosong.
     pub fn audit(&self, glyphs: &Glyphs) -> Vec<String> {
         let mut findings = self.overlaps.clone();
@@ -1019,7 +1019,7 @@ mod tests {
 
     /// Invarian keluarga, ditegakkan di dua lapis: tes ini menjelaskan
     /// maksudnya secara eksplisit, audit memeriksa semuanya (termasuk lewat
-    /// `ikon --audit` sebelum rilis).
+    /// `ticon --audit` sebelum rilis).
     #[test]
     fn satu_keluarga_satu_warna() {
         let rules = rules();

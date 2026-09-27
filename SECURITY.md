@@ -22,7 +22,7 @@ ditinjau seperti perubahan keamanan, bukan seperti chores biasa.
 
 ## Yang bukan kerentanan
 
-- `ikon` hanya membaca: tidak menulis berkas, tidak mengirim apa pun, tidak
+- `ticon` hanya membaca: tidak menulis berkas, tidak mengirim apa pun, tidak
   menjalankan apa pun yang ia baca dari isi folder.
 - Nama berkas yang memuat karakter kontrol **tidak dieksekusi** — karakter itu
   ditampilkan sebagai `\u{1b}`. Ini perilaku yang diinginkan, bukan kebocoran.

@@ -1,4 +1,4 @@
-//! `ticon` — pustaka pemetaan ikon, plus perintah `ikon` untuk terminal.
+//! `ticon` — pustaka pemetaan ikon, plus perintah `ticon` untuk terminal.
 //!
 //! Dua hal dalam satu paket:
 //!
@@ -7,7 +7,7 @@
 //!   ([`mapping::Icon`]) berisi karakter dan **nama** warna — bukan string
 //!   ANSI — supaya pemanggil (TUI, skrip, aplikasi Rust lain) yang memilih
 //!   cara mewarnainya sendiri.
-//! * **Perintah** `ikon`: menampilkan direktori dengan ikon, lewat
+//! * **Perintah** `ticon`: menampilkan direktori dengan ikon, lewat
 //!   `--list`, `--gallery`, `--audit`, `--explain`, dan `--export`.
 //!
 //! ```no_run
@@ -53,7 +53,7 @@ use render::Item;
 use unicode_width::UnicodeWidthStr;
 
 /// Jalankan perintah: parse argumen dari [`std::env::args`], kerjakan, lalu
-/// kembalikan exit code-nya. Titik masuk perintah `ikon`.
+/// kembalikan exit code-nya. Titik masuk perintah `ticon`.
 pub fn run() -> ExitCode {
     match execute() {
         Ok(code) => code,
@@ -75,10 +75,10 @@ fn execute() -> Result<ExitCode, String> {
             Ok(ExitCode::SUCCESS)
         }
         Command::Version => {
-            println!("ikon {}", env!("CARGO_PKG_VERSION"));
+            println!("ticon {}", env!("CARGO_PKG_VERSION"));
             Ok(ExitCode::SUCCESS)
         }
-        Command::Error(message) => Err(format!("{message}\n\nCoba `ikon --help`")),
+        Command::Error(message) => Err(format!("{message}\n\nCoba `ticon --help`")),
         Command::Audit => {
             let rules = Rules::load()?;
             let glyphs = Glyphs::bundled();
@@ -318,7 +318,7 @@ fn render_entry(rules: &Rules, glyphs: &Glyphs, options: &Options, entry: &Entry
 // ---------------------------------------------------------------------------
 
 /// Galeri contoh: satu baris per aturan, dan contoh namanya benar-benar
-/// dilewatkan ke resolver yang sama dengan yang dipakai `ikon` sehari-hari.
+/// dilewatkan ke resolver yang sama dengan yang dipakai `ticon` sehari-hari.
 /// Jadi yang kamu lihat di sini bukan gambar atas nama desain — itu memang
 /// hasil yang akan keluar.
 fn print_gallery(rules: &Rules, glyphs: &Glyphs, options: &Options) {
@@ -390,7 +390,7 @@ fn print_gallery(rules: &Rules, glyphs: &Glyphs, options: &Options) {
 
 /// Tampilan untuk meninjau desain: satu baris per kategori, lalu rincian
 /// aturannya menjorok di bawahnya. Sengaja dijaga agar tetap bisa di-grep —
-/// `ikon --list | grep language_go` harus tetap berguna.
+/// `ticon --list | grep language_go` harus tetap berguna.
 fn print_mapping(rules: &Rules, glyphs: &Glyphs, options: &Options) {
     // Lebar kolom nama ikut menghitung folder khusus dengan awalan "/";
     // tanpa ini baris seperti `/node_modules` bergeser melewati kolom glyph.

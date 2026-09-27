@@ -23,7 +23,7 @@
 #      itu menjadi satu warna. Satu keluarga = satu warna, satu warna = satu
 #      keluarga — jadi "siapa yang berbagi warna dengan siapa" terbaca dari
 #      satu tabel, bukan ditebak dari 64 baris. Yang menegakkan: `cargo test`
-#      dan `ikon --audit` (keluarga tak dikenal, dua keluarga berebut warna,
+#      dan `ticon --audit` (keluarga tak dikenal, dua keluarga berebut warna,
 #      warna palet menganggur, tetangga beda keluarga yang sewarna, awalan atau
 #      akhiran yang diklaim dua kategori, serta pemakaian `dim` yang melampaui
 #      MAX_DIM_RULES). `load()` juga menolak karakter kontrol/bidi dan kode
@@ -62,7 +62,7 @@ dim     = "90"
 #  folder khusus di bawah hanya menyebut keluarga; warnanya diturunkan dari
 #  tabel ini — inilah satu-satunya tempat keputusan "siapa berbagi warna".
 #
-#  Yang ditegakkan `cargo test` dan `ikon --audit`:
+#  Yang ditegakkan `cargo test` dan `ticon --audit`:
 #    - setiap aturan punya keluarga yang ada di sini,
 #    - satu keluarga satu warna dan satu warna satu keluarga,
 #    - tidak ada warna palet yang menganggur,

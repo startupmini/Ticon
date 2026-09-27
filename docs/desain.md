@@ -98,7 +98,7 @@ Keputusannya hanya dibuat sekali di `[families]`, sehingga:
 
 Pasangan `family` → warna lalu dipasang di dua lapis: `cargo test` menjelaskan
 maksudnya (termasuk dua test yang sengaja melanggar aturan untuk membuktikan
-detektornya hidup), `ikon --audit` memeriksanya sebelum rilis.
+detektornya hidup), `ticon --audit` memeriksanya sebelum rilis.
 
 ## Warna mengikuti theme
 
