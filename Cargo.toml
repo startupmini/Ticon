@@ -1,7 +1,7 @@
 [package]
 name = "ticon"
 # Pustaka dan binary satu paket dengan satu nama: `ticon`.
-version = "0.4.2"
+version = "0.4.3"
 edition = "2021"
 # MSRV 1.85 — bukan karena kode kita butuh itu (`std::iter::repeat_n` sudah
 # cukup 1.82), tapi karena `indexmap` (lewat `toml_edit`) memakai manifest

@@ -4,7 +4,7 @@ Semua perubahan yang berarti bagi pengguna dicatat di sini. Formatnya
 mengikuti [Keep a Changelog](https://keepachangelog.com/), versinya
 [SemVer](https://semver.org/lang/id/).
 
-## Belum rilis
+## 0.4.3
 
 ### Ditambahkan
 
