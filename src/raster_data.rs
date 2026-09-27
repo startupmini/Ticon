@@ -1,0 +1,72 @@
+//! DIHASILKAN OTOMATIS - jangan diedit tangan.
+//!
+//! Nama glyph yang dirujuk `icons.toml` -> codepoint-nya. Dipakai untuk
+//! menguji bahwa subset font di `assets/raster.ttf` masih lengkap, dan
+//! oleh jalur render half-block nanti.
+//!
+//! Sumber: Nerd Fonts v3.5.1 (SIL OFL 1.1), DepartureMonoNerdFontMono-Regular.otf.
+//! SHA-256 arsip: 7d2d86db20730e26ee4fc926e3c64429d6f9da6fce91e74c325fe1c5ee74d9ee
+//! Regenerasi: python tools/gen-raster.py
+
+/// Nama glyph yang dirujuk `icons.toml` -> codepoint-nya, terurut.
+///
+/// Dipakai untuk menguji kelengkapan subset font dan, nanti, oleh jalur
+/// render half-block. Daftarnya sengaja datar supaya bisa diperiksa dari
+/// tes tanpa perlu mengurai berkas TTF.
+pub const GLYPH: &[(&str, u32)] = &[
+    ("nf-md-application_outline", 0xf0614),
+    ("nf-md-book_open_page_variant", 0xf05da),
+    ("nf-md-cached", 0xf00e8),
+    ("nf-md-certificate_outline", 0xf1188),
+    ("nf-md-checkbox_marked_outline", 0xf0135),
+    ("nf-md-code_braces", 0xf0169),
+    ("nf-md-code_json", 0xf0626),
+    ("nf-md-cog_outline", 0xf08bb),
+    ("nf-md-console_line", 0xf07b7),
+    ("nf-md-cube_outline", 0xf01a7),
+    ("nf-md-database_outline", 0xf1632),
+    ("nf-md-docker", 0xf0868),
+    ("nf-md-file_document_outline", 0xf09ee),
+    ("nf-md-file_outline", 0xf0224),
+    ("nf-md-file_pdf_box", 0xf0226),
+    ("nf-md-file_presentation_box", 0xf0229),
+    ("nf-md-file_table_box_outline", 0xf10e4),
+    ("nf-md-file_word_box_outline", 0xf103d),
+    ("nf-md-folder_outline", 0xf0256),
+    ("nf-md-folder_zip_outline", 0xf07b9),
+    ("nf-md-format_font", 0xf06d6),
+    ("nf-md-format_list_bulleted", 0xf0279),
+    ("nf-md-harddisk", 0xf02ca),
+    ("nf-md-image_outline", 0xf0976),
+    ("nf-md-key_outline", 0xf0dd6),
+    ("nf-md-language_c", 0xf0671),
+    ("nf-md-language_cpp", 0xf0672),
+    ("nf-md-language_csharp", 0xf031b),
+    ("nf-md-language_css3", 0xf031c),
+    ("nf-md-language_go", 0xf07d3),
+    ("nf-md-language_haskell", 0xf0c92),
+    ("nf-md-language_html5", 0xf031d),
+    ("nf-md-language_java", 0xf0b37),
+    ("nf-md-language_javascript", 0xf031e),
+    ("nf-md-language_kotlin", 0xf1219),
+    ("nf-md-language_lua", 0xf08b1),
+    ("nf-md-language_php", 0xf031f),
+    ("nf-md-language_python", 0xf0320),
+    ("nf-md-language_r", 0xf07d4),
+    ("nf-md-language_ruby", 0xf0d2d),
+    ("nf-md-language_rust", 0xf1617),
+    ("nf-md-language_swift", 0xf06e5),
+    ("nf-md-language_typescript", 0xf06e6),
+    ("nf-md-license", 0xf0fc3),
+    ("nf-md-lock_outline", 0xf0341),
+    ("nf-md-movie_outline", 0xf0ddd),
+    ("nf-md-music_note_outline", 0xf0f74),
+    ("nf-md-notebook_outline", 0xf0ebf),
+    ("nf-md-package_variant_closed", 0xf03d7),
+    ("nf-md-server_network", 0xf048d),
+    ("nf-md-shield_key_outline", 0xf0bc5),
+    ("nf-md-source_branch", 0xf062c),
+    ("nf-md-test_tube", 0xf0668),
+    ("nf-md-text_box_outline", 0xf09ed),
+    ("nf-md-xml", 0xf05c0),
+];

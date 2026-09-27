@@ -4,6 +4,32 @@ Semua perubahan yang berarti bagi pengguna dicatat di sini. Formatnya
 mengikuti [Keep a Changelog](https://keepachangelog.com/), versinya
 [SemVer](https://semver.org/lang/id/).
 
+## Belum rilis
+
+### Ditambahkan
+
+- **`--icons shape`**: mode tanpa Nerd Font. Bentuk satu sel per keluarga
+  warna (`≡ → ● § ▲ ♦ □ ▪`, dan `▼` untuk folder), dipilih dari karakter yang
+  **terbukti** ada di font dasar — `tools/audit-font.py` mengeceknya ke tujuh
+  font yang biasa ada di Windows dan keluar dengan error kalau ada yang tidak
+  ada. Alasannya: glyph Nerd Font ada di codepoint private-use, jadi pengguna
+  tanpa font itu melihat kotak, dan program tidak bisa mendeteksinya dari
+  dalam proses.
+- **Subset font Nerd Fonts ikut dikemas** (`assets/raster.ttf`, 14,1 KiB dari
+  2,2 MB; 55 glyph). Bukan untuk jalur karakter — terminal tetap memakai font
+  miliknya sendiri — tapi sebagai input jalur render half-block, supaya
+  konsumen tidak perlu mengunduh 2,2 MB.
+  `tests/subset-font.rs` menjaga subset itu tetap pas: gagal kalau
+  `icons.toml` memakai glyph yang tidak ada di subset, dan juga kalau subsetnya
+  membawa glyph yang tidak terpakai.
+- **`tools/gen-raster.py`**: membuat subset dan `src/raster_data.rs` dari
+  `icons.toml`, dengan verifikasi SHA-256 arsip upstream.
+
+### Diperbaiki
+
+- README mengklaim proyek ini tidak ada di crates.io; sebenarnya sudah terbit,
+  jadi cara pasangnya (termasuk `cargo add ticon`) diperbarui.
+
 ## 0.4.2
 
 Rilis keamanan: jalur pemuatan peta netral (`--icons-map`, diperkenalkan di
