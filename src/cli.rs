@@ -8,6 +8,7 @@ use std::env;
 use std::io::IsTerminal;
 use std::path::PathBuf;
 
+/// Teks bantuan yang dicetak `ikon --help`.
 pub const HELP: &str = "\
 ikon — ikon minimalis dan flat untuk terminal
 
@@ -24,6 +25,8 @@ Opsi:
         --list             cetak tabel pemetaan ikon
         --gallery          cetak contoh ikon dari tiap aturan
         --audit            periksa konsistensi pemetaan
+        --explain <nama>   kenapa nama itu dapat ikon tersebut
+        --export           cetak semua aturan sebagai tabel TSV
     -h, --help             tampilkan bantuan ini
     -V, --version          tampilkan versi
 
@@ -49,25 +52,40 @@ Bash), ikon dan warna dimatikan otomatis. Pakai `--icons always`, atau set
 `IKON_ICONS=always` supaya selalu tampil.
 ";
 
+/// Kunci pengurutan entri direktori.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Sort {
+    /// Berdasarkan nama (huruf besar/kecil diabaikan).
     Name,
+    /// Berdasarkan ekstensi, lalu nama.
     Ext,
+    /// Berdasarkan ukuran, terbesar dulu.
     Size,
+    /// Berdasarkan waktu modifikasi, terbaru dulu.
     Time,
 }
 
+/// Opsi yang sudah ternormalisasi: tidak ada lagi mode `auto`/lingkungan yang
+/// belum diputuskan — semua sudah dijawab di [`parse`].
 #[derive(Debug)]
 pub struct Options {
+    /// Path yang diminta; kosong berarti direktori saat ini.
     pub paths: Vec<PathBuf>,
+    /// Tampilkan berkas tersembunyi (`-a`).
     pub all: bool,
+    /// Satu entri per baris (`-1`), bukan grid kolom.
     pub one_per_line: bool,
+    /// Tampilkan glyph ikon.
     pub icons: bool,
+    /// Gunakan warna ANSI.
     pub color: bool,
+    /// Kunci pengurutan entri.
     pub sort: Sort,
+    /// Lebar kolom yang dipaksakan; `None` = pakai lebar terminal.
     pub width: Option<usize>,
 }
 
+/// Perintah yang bisa diminta ke `ikon`, hasil parsing argumen.
 #[derive(Debug)]
 pub enum Command {
     /// Tampilkan isi direktori.
@@ -78,14 +96,26 @@ pub enum Command {
     Gallery(Options),
     /// Periksa konsistensi pemetaan.
     Audit,
+    /// Jelaskan kenapa sebuah nama mendapat ikon tertentu.
+    Explain(String),
+    /// Cetak seluruh aturan sebagai tabel TSV ke stdout.
+    Export,
+    /// Cetak bantuan dan keluar.
     Help,
+    /// Cetak versi dan keluar.
     Version,
+    /// Argumen tidak bisa dipakai; isinya pesan untuk pengguna.
     Error(String),
 }
 
+/// Tiga tingkat untuk opsi yang bisa `auto`: tentukan sendiri, paksa, atau
+/// jangan pernah.
 enum Mode {
+    /// Biarkan `ikon` yang memutuskan (dari tty, lingkungan, dan tema).
     Auto,
+    /// Selalu nyalakan, apa pun kondisi terminal.
     Always,
+    /// Selalu matikan.
     Never,
 }
 
@@ -104,6 +134,9 @@ impl Mode {
 
 /// Nilai lingkungan yang salah tidak lagi ditelan diam-diam — sama seperti
 /// `--icons=<nilai>` yang keluar dengan pesan error.
+/// Ubah nilai dari variabel lingkungan menjadi [`Mode`]. Nilai yang tidak
+/// dikenal **tidak** ditelan diam-diam: kesalahannya dikembalikan sebagai
+/// pesan, sama seperti `--icons=<nilai>` yang salah ketik.
 fn env_mode(name: &str) -> Result<Option<Mode>, String> {
     match env::var(name) {
         Ok(value) => Mode::parse(&value)
@@ -113,6 +146,11 @@ fn env_mode(name: &str) -> Result<Option<Mode>, String> {
     }
 }
 
+/// Ubah argumen menjadi [`Command`].
+///
+/// Tidak pernah gagal dengan panic atau `Result`: kesalahan argumen dikembalikan
+/// sebagai [`Command::Error`] yang pesannya siap ditampilkan, sehingga pemanggil
+/// (dan tes) tidak perlu memproses kesalahan sendiri.
 pub fn parse(args: impl Iterator<Item = String>) -> Command {
     let mut options = Options {
         paths: Vec::new(),
@@ -178,6 +216,17 @@ pub fn parse(args: impl Iterator<Item = String>) -> Command {
                 Ok(())
             }
             "--audit" => return Command::Audit,
+            "--explain" => match take_value("--explain").and_then(|value| {
+                if value.is_empty() {
+                    Err("opsi --explain butuh nama".to_string())
+                } else {
+                    Ok(value)
+                }
+            }) {
+                Ok(name) => return Command::Explain(name),
+                Err(message) => return Command::Error(message),
+            },
+            "--export" => return Command::Export,
             "--icons" => take_value("--icons").and_then(|value| {
                 icon_mode = Some(Mode::parse(&value)?);
                 Ok(())

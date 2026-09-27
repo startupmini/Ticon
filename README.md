@@ -71,6 +71,8 @@ ikon -1                   # satu entri per baris
 ikon --list               # cetak seluruh tabel pemetaan, untuk ditinjau
 ikon --gallery            # cetak contoh ikon dari tiap aturan
 ikon --audit              # periksa konsistensi icons.toml
+ikon --explain main.go    # kenapa berkas ini dapat ikon itu
+ikon --export             # semua aturan sebagai tabel TSV
 ```
 
 | Opsi | Arti |
@@ -84,10 +86,39 @@ ikon --audit              # periksa konsistensi icons.toml
 | `--list` | cetak tabel pemetaan (tanpa path) |
 | `--gallery` | cetak contoh ikon dari tiap aturan (tanpa path) |
 | `--audit` | periksa konsistensi pemetaan |
+| `--explain <nama>` | tampilkan aturan yang menang **dan** yang kalah prioritas |
+| `--export` | cetak semua aturan sebagai TSV ke stdout |
 
 Alias yang didukung: `--colour` (sama dengan `--color`), `--no-color` (sama
 dengan `--color never`), `--sort extension` / `--sort mtime`, dan `--` untuk
 menghentikan parsing opsi.
+
+## Pakai sebagai pustaka
+
+Paketnya bernama **`ticon`**; perintahnya tetap `ikon`. Pustakanya untuk
+aplikasi TUI, previewer, atau apa pun yang butuh tauhu  ikon sebuah nama
+tanpa memanggil proses luar:
+
+```rust
+let rules = ticon::mapping::Rules::load()?;
+let glyphs = ticon::glyph::Glyphs::bundled();
+
+let icon = rules.icon_for(&glyphs, "main.rs");
+println!("{:?} {} {:?}", icon.ch, icon.color, icon.matched_by);
+// Some('󱘗') "cyan" Suffix
+```
+
+Yang dikembalikan **bukan string ANSI**: `Icon` berisi karakter glyph, **nama**
+warna, dan asal pencocokannya, jadi pemanggil yang memilih cara mewarnainya.
+Kalau butuh alasannya secara rinci:
+
+```rust
+let penjelasan = rules.explain_file("app.test.ts");
+println!("{:?}", penjelasan.winner()); // Some(Kandidat { matched_by: Suffix, pattern: ".test.ts", .. })
+```
+
+Untuk tool non-Rust, `ikon --export` mengeluarkan seluruh aturan sebagai TSV
+yang bisa langsung dibaca `awk` atau skrip shell.
 
 | Variabel lingkungan | Arti |
 |---|---|

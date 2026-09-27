@@ -16,9 +16,10 @@ use crate::render;
 /// `build.rs`: konsistensi visual.
 pub const ALLOWED_FAMILIES: &[&str] = &["nf-md-", "nf-oct-"];
 
-/// Kategori cadangan kalau tidak ada aturan yang cocok. Keduanya wajib ada di
+/// Kategori bawaan untuk folder yang namanya tidak dikenal. Wajib ada di
 /// `icons.toml` — bahkan nilai bawaan pun data, bukan hardcode di kode.
 pub const DEFAULT_DIR_CATEGORY: &str = "folder";
+/// Kategori bawaan untuk berkas yang tidak cocok aturan apa pun.
 pub const DEFAULT_FILE_CATEGORY: &str = "file";
 
 /// Teks `icons.toml` yang sama persis dengan yang dimuat `Rules::load()`.
@@ -35,17 +36,24 @@ pub const ICONS_TOML: &str = include_str!("../icons.toml");
 pub const MAX_DIM_RULES: usize = 10;
 
 #[derive(Debug, Clone, Deserialize)]
+/// Satu blok `[categories.<nama>]` di `icons.toml`: bentuk ikon dan cakupannya.
+/// Tidak ada warna di sini — hanya keluarga, dan warnanya diturunkan.
 pub struct Category {
+    /// Nama glyph (harus dari keluarga yang diizinkan `build.rs`).
     pub glyph: String,
     /// Keluarga dari tabel `[families]`. Warnanya diturunkan lewat
     /// `Rules::color_of`, jadi keputusan warna hanya hidup di satu tempat.
     pub family: String,
+    /// Ekstensi (huruf kecil, diawali titik). `.tar.gz` menang atas `.gz`.
     #[serde(default)]
     pub ext: Vec<String>,
+    /// Nama berkas persis, tanpa wildcard.
     #[serde(default)]
     pub names: Vec<String>,
+    /// Awalan nama berkas.
     #[serde(default)]
     pub prefix: Vec<String>,
+    /// Akhiran nama berkas.
     #[serde(default)]
     pub suffix: Vec<String>,
     /// Bentuk berbeda di dalam kategori yang sama. Warna tetap milik kategori,
@@ -57,7 +65,9 @@ pub struct Category {
 /// Aturan folder well-known dari bagian `[dirs]`: bentuk dan keluarga warna.
 #[derive(Debug, Clone, Deserialize)]
 pub struct DirRule {
+    /// Nama glyph untuk folder ini.
     pub glyph: String,
+    /// Keluarga warnanya; lihat [`Category::family`].
     pub family: String,
 }
 
@@ -70,13 +80,50 @@ struct IconsFile {
     dirs: BTreeMap<String, DirRule>,
 }
 
+/// Dari mana sebuah aturan berasal. Urutan enum ini juga urutan prioritasnya,
+/// dan urutan itulah yang dikunci tes `urutan_resolusi_ikut_dokumentasi`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MatchedBy {
+    /// Nama folder dari `[dirs]`.
+    WellKnownFolder,
+    /// Nama berkas persis dari `names`.
+    Name,
+    /// Akhiran dari `suffix`.
+    Suffix,
+    /// Awalan dari `prefix`.
+    Prefix,
+    /// Ekstensi dari `ext`.
+    Extension,
+    /// Tidak ada aturan yang cocok; dipakai kategori bawaan.
+    Fallback,
+}
+
+impl MatchedBy {
+    /// Label siap tampil, untuk `ikon --explain` dan dokumentasi.
+    pub fn label(self) -> &'static str {
+        match self {
+            MatchedBy::WellKnownFolder => "folder well-known",
+            MatchedBy::Name => "nama persis",
+            MatchedBy::Suffix => "akhiran",
+            MatchedBy::Prefix => "awalan",
+            MatchedBy::Extension => "ekstensi",
+            MatchedBy::Fallback => "kategori bawaan",
+        }
+    }
+}
+
 /// Hasil resolusi: nama glyph + nama warna dari palet. Keduanya masih berupa
 /// nama, bukan karakter dan kode ANSI — indirection inilah yang membuat
 /// resolve dan render bisa berubah sendiri-sendiri.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Resolved {
+    /// Nama glyph, bukan karakter — [`crate::glyph::Glyphs`] yang menerjemahkannya.
     pub glyph: String,
+    /// Nama warna dari palet, bukan kode ANSI.
     pub color: String,
+    /// Aturan mana yang menang. Penting untuk TUI: aplikasi bisa menampilkan
+    /// "kenapa berkas ini jadi ikon ini" tanpa menebak.
+    pub matched_by: MatchedBy,
 }
 
 impl Resolved {
@@ -84,16 +131,67 @@ impl Resolved {
         Self {
             glyph: glyph.into(),
             color: color.into(),
+            matched_by: MatchedBy::Fallback,
         }
     }
 }
 
+/// Bentuk siap pakai untuk TUI atau skrip: karakter, nama warna, dan asal
+/// pencocokannya. Tanpa string ANSI — pemanggil yang memilih cara mewarnainya.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Icon {
+    /// Karakter glyph, atau `None` bila nama glyph tidak ada di
+    /// `assets/glyphs.toml`. Tidak ditebak dengan karakter pengganti supaya
+    /// pemanggil tahu ada data yang kurang.
+    pub ch: Option<char>,
+    /// Nama warna dari `[palette]`, bukan kode ANSI.
+    pub color: String,
+    /// Aturan mana yang menang.
+    pub matched_by: MatchedBy,
+}
+
+/// Satu aturan yang cocok untuk sebuah nama.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Kandidat {
+    /// Jenis aturan ini (nama persis, akhiran, awalan, dst).
+    pub matched_by: MatchedBy,
+    /// Pola yang cocok, persis seperti tertulis di `icons.toml`.
+    pub pattern: String,
+    /// Nama glyph yang akan dipakai kalau aturan ini menang.
+    pub glyph: String,
+    /// Nama warnanya.
+    pub color: String,
+}
+
+/// Hasil [`Rules::explain_file`] dan [`Rules::explain_dir`]: semua aturan yang
+/// cocok, **berurutan prioritas**. Yang pertama adalah pemenang; sisanya kalah
+/// dan menjelaskan kenapa hasilnya berbeda dari yang biasa orang kira.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Explanation {
+    /// Kandidat berurutan prioritas; yang pertama adalah pemenang.
+    pub kandidat: Vec<Kandidat>,
+}
+
+impl Explanation {
+    /// Aturan yang menang, atau `None` kalau tidak ada aturan yang cocok —
+    /// dalam kasus itu berlaku kategori bawaan.
+    pub fn winner(&self) -> Option<&Kandidat> {
+        self.kandidat.first()
+    }
+}
+
+/// Seluruh aturan pemetaan, sudah terindeks dan siap menjawab pertanyaan
+/// "nama ini dapat ikon apa". Dibangun sekali lewat [`Rules::load`], lalu
+/// dipakai berulang — pencarian tidak menyentuh berkas.
 pub struct Rules {
+    /// Nama warna -> kode SGR ANSI, dari `[palette]`.
     pub palette: BTreeMap<String, String>,
     /// Keluarga → warna. Di sinilah keputusan "siapa berbagi warna" dibuat;
     /// aturan tidak pernah menyebut warna, hanya keluarganya.
     pub families: BTreeMap<String, String>,
+    /// Kategori dari `[categories.*]`, kunci huruf kecil.
     pub categories: BTreeMap<String, Category>,
+    /// Aturan folder well-known dari `[dirs]`, kunci huruf kecil.
     pub dirs: BTreeMap<String, DirRule>,
     by_name: BTreeMap<String, Resolved>,
     by_ext: BTreeMap<String, Resolved>,
@@ -108,6 +206,8 @@ pub struct Rules {
 }
 
 impl Rules {
+    /// Muat aturan dari `icons.toml` yang tertanam, lalu bangun indeksnya.
+    /// Mengembalikan pesan galat yang menunjuk pelakunya kalau data ditolak.
     pub fn load() -> Result<Self, String> {
         Self::load_from(ICONS_TOML)
     }
@@ -269,11 +369,43 @@ impl Rules {
         sort_longest_first(&mut self.suffixes);
     }
 
+    /// Ikon untuk nama folder, siap pakai. `matched_by` menjadi
+    /// [`MatchedBy::WellKnownFolder`] kalau namanya dikenal, selain itu
+    /// [`MatchedBy::Fallback`].
     pub fn resolve_dir(&self, name: &str) -> Resolved {
-        if let Some(rule) = self.dirs.get(&name.to_lowercase()) {
-            return Resolved::new(rule.glyph.clone(), self.color_of(&rule.family).to_string());
+        let key = name.to_lowercase();
+        match self.dirs.get(&key) {
+            Some(rule) => Resolved {
+                glyph: rule.glyph.clone(),
+                color: self.color_of(&rule.family).to_string(),
+                matched_by: MatchedBy::WellKnownFolder,
+            },
+            None => self.category(DEFAULT_DIR_CATEGORY),
         }
-        self.category(DEFAULT_DIR_CATEGORY)
+    }
+
+    /// Satu-satunya tempat urutan prioritas ditetapkan, supaya `resolve_*` dan
+    /// `explain_*` tidak bisa berbeda pendapat: nama persis → akhiran → awalan
+    /// → ekstensi terpanjang. Kalau tidak ada yang cocok, hasilnya
+    /// [`MatchedBy::Fallback`].
+    fn cari(&self, key: &str) -> Option<(Resolved, MatchedBy, String)> {
+        if let Some(resolved) = self.by_name.get(key) {
+            return Some((resolved.clone(), MatchedBy::Name, key.to_string()));
+        }
+        if let Some((pattern, resolved)) =
+            first_match(key, &self.suffixes, |name, p| name.ends_with(p))
+        {
+            return Some((resolved, MatchedBy::Suffix, pattern.to_string()));
+        }
+        if let Some((pattern, resolved)) =
+            first_match(key, &self.prefixes, |name, p| name.starts_with(p))
+        {
+            return Some((resolved, MatchedBy::Prefix, pattern.to_string()));
+        }
+        if let Some((pattern, resolved)) = self.match_extension(key) {
+            return Some((resolved, MatchedBy::Extension, pattern.to_string()));
+        }
+        None
     }
 
     /// Urutan pencarian, dari yang paling spesifik:
@@ -283,37 +415,113 @@ impl Rules {
     /// berkas uji, bukan sekadar TypeScript.
     pub fn resolve_file(&self, name: &str) -> Resolved {
         let key = name.to_lowercase();
+        match self.cari(&key) {
+            Some((mut resolved, matched_by, _)) => {
+                resolved.matched_by = matched_by;
+                resolved
+            }
+            None => self.category(DEFAULT_FILE_CATEGORY),
+        }
+    }
+
+    /// Bentuk siap pakai untuk TUI: karakter + nama warna + asal aturan.
+    /// `ch` bernilai `None` hanya bila nama glyph-nya tidak ada di
+    /// `assets/glyphs.toml`.
+    pub fn icon_for(&self, glyphs: &Glyphs, name: &str) -> Icon {
+        self.jadi_icon(glyphs, self.resolve_file(name))
+    }
+
+    /// Seperti [`Rules::icon_for`], untuk nama folder.
+    pub fn icon_for_dir(&self, glyphs: &Glyphs, name: &str) -> Icon {
+        self.jadi_icon(glyphs, self.resolve_dir(name))
+    }
+
+    fn jadi_icon(&self, glyphs: &Glyphs, resolved: Resolved) -> Icon {
+        Icon {
+            ch: glyphs.get(&resolved.glyph),
+            color: resolved.color,
+            matched_by: resolved.matched_by,
+        }
+    }
+
+    /// Semua aturan yang cocok untuk nama berkas, berurutan prioritas.
+    /// Kosong berarti tidak ada aturan yang cocok dan kategori bawaan yang
+    /// dipakai. Inilah juga yang membuat `ikon --explain` bisa menunjukkan
+    /// alasan, bukan cuma hasil.
+    pub fn explain_file(&self, name: &str) -> Explanation {
+        let key = name.to_lowercase();
+        let mut kandidat = Vec::new();
 
         if let Some(resolved) = self.by_name.get(&key) {
-            return resolved.clone();
+            kandidat.push(Kandidat {
+                matched_by: MatchedBy::Name,
+                pattern: key.clone(),
+                glyph: resolved.glyph.clone(),
+                color: resolved.color.clone(),
+            });
         }
-        if let Some(resolved) = first_match(&key, &self.suffixes, |name, pattern| {
-            name.ends_with(pattern)
-        }) {
-            return resolved;
+        for (pola, resolved) in &self.suffixes {
+            if key.ends_with(pola.as_str()) {
+                kandidat.push(Kandidat {
+                    matched_by: MatchedBy::Suffix,
+                    pattern: pola.clone(),
+                    glyph: resolved.glyph.clone(),
+                    color: resolved.color.clone(),
+                });
+            }
         }
-        if let Some(resolved) = first_match(&key, &self.prefixes, |name, pattern| {
-            name.starts_with(pattern)
-        }) {
-            return resolved;
+        for (pola, resolved) in &self.prefixes {
+            if key.starts_with(pola.as_str()) {
+                kandidat.push(Kandidat {
+                    matched_by: MatchedBy::Prefix,
+                    pattern: pola.clone(),
+                    glyph: resolved.glyph.clone(),
+                    color: resolved.color.clone(),
+                });
+            }
         }
-        if let Some(resolved) = self.match_extension(&key) {
-            return resolved;
+        for (position, _) in key.match_indices('.') {
+            if let Some(resolved) = self.by_ext.get(&key[position..]) {
+                kandidat.push(Kandidat {
+                    matched_by: MatchedBy::Extension,
+                    pattern: key[position..].to_string(),
+                    glyph: resolved.glyph.clone(),
+                    color: resolved.color.clone(),
+                });
+            }
         }
-        self.category(DEFAULT_FILE_CATEGORY)
+        Explanation { kandidat }
+    }
+
+    /// Semua aturan yang cocok untuk nama folder, berurutan prioritas.
+    pub fn explain_dir(&self, name: &str) -> Explanation {
+        let key = name.to_lowercase();
+        let mut kandidat = Vec::new();
+        if let Some(rule) = self.dirs.get(&key) {
+            kandidat.push(Kandidat {
+                matched_by: MatchedBy::WellKnownFolder,
+                pattern: key.clone(),
+                glyph: rule.glyph.clone(),
+                color: self.color_of(&rule.family).to_string(),
+            });
+        }
+        Explanation { kandidat }
     }
 
     /// Ekstensi terpanjang yang menang, supaya "arsip.tar.gz" tidak jatuh ke
-    /// ".gz" biasa dan "tipe.d.ts" menang atas ".ts".
-    fn match_extension(&self, key: &str) -> Option<Resolved> {
+    /// ".gz" biasa dan "tipe.d.ts" menang atas ".ts". Potongan yang dikembalikan
+    /// dipinjam dari `key`.
+    fn match_extension<'a>(&self, key: &'a str) -> Option<(&'a str, Resolved)> {
         for (position, _) in key.match_indices('.') {
             if let Some(resolved) = self.by_ext.get(&key[position..]) {
-                return Some(resolved.clone());
+                return Some((&key[position..], resolved.clone()));
             }
         }
         None
     }
 
+    /// Aturan satu kategori untuk semua nama, dipakai untuk kategori bawaan.
+    /// Kategori yang tidak ada menghasilkan glyph kosong dan warna `dim`.
     pub fn category(&self, name: &str) -> Resolved {
         self.categories
             .get(name)
@@ -326,6 +534,8 @@ impl Rules {
             .unwrap_or_else(|| Resolved::new("", "dim"))
     }
 
+    /// Kode SGR ANSI untuk satu nama warna, atau `None` kalau nama itu tidak
+    /// ada di `[palette]`.
     pub fn ansi(&self, color: &str) -> Option<&str> {
         self.palette.get(color).map(String::as_str)
     }
@@ -569,15 +779,18 @@ fn sort_longest_first(rules: &mut [(String, Resolved)]) {
     rules.sort_by(|a, b| b.0.len().cmp(&a.0.len()).then_with(|| a.0.cmp(&b.0)));
 }
 
-fn first_match(
+/// Aturan pertama yang cocok, beserta polanya. Mengembalikan `(pola, hasil)`
+/// supaya `explain_*` bisa menampilkan pola yang benar-benar menang. Pola yang
+/// dikembalikan dipinjam dari daftar aturan, bukan dari `key`.
+fn first_match<'a>(
     key: &str,
-    rules: &[(String, Resolved)],
+    rules: &'a [(String, Resolved)],
     predicate: impl Fn(&str, &str) -> bool,
-) -> Option<Resolved> {
+) -> Option<(&'a str, Resolved)> {
     rules
         .iter()
         .find(|(pattern, _)| predicate(key, pattern.as_str()))
-        .map(|(_, resolved)| resolved.clone())
+        .map(|(pattern, resolved)| (pattern.as_str(), resolved.clone()))
 }
 
 /// Ambil nilai string dari baris bergaya `key = "value"`.
@@ -841,6 +1054,73 @@ mod tests {
 
     /// `dim` berarti "tidak ada yang menarik di sini". Kalau dipakai segala
     /// macam, daftar terasa mati. Batasnya mesin, bukan selera.
+    /// Urutan resolusi adalah kontrak pustaka, bukan sekadar internal: aplikasi
+    /// TUI mengandalkan `matched_by` untuk menjelaskan pilihannya. Tes ini
+    /// mengunci isi `Icon` sampai ke karakter dan nama warnanya.
+    #[test]
+    fn icon_siap_pakai_untuk_tui() {
+        let rules = rules();
+        let glyphs = Glyphs::bundled();
+
+        let ikon = rules.icon_for(&glyphs, "app.test.ts");
+        assert_eq!(ikon.matched_by, MatchedBy::Suffix);
+        assert_eq!(
+            ikon.color, "green",
+            "warna harus nama palet, bukan kode ANSI"
+        );
+        assert!(ikon.ch.is_some(), "glyph harus ditemukan di tabel");
+
+        let folder = rules.icon_for_dir(&glyphs, "src");
+        assert_eq!(folder.matched_by, MatchedBy::WellKnownFolder);
+
+        let ekstensi = rules.icon_for(&glyphs, "main.go");
+        assert_eq!(ekstensi.matched_by, MatchedBy::Extension);
+
+        // Tanpa aturan sama sekali: jatuh ke kategori bawaan, dan glyph
+        // bawaannya tetap ada di tabel.
+        let tanpa_aturan = rules.icon_for(&glyphs, "zzz");
+        assert_eq!(tanpa_aturan.matched_by, MatchedBy::Fallback);
+        assert!(tanpa_aturan.ch.is_some());
+    }
+
+    /// `explain_*` harus bisa intrigued alasan, termasuk aturan yang kalah — itulah
+    /// yang menjawab "kenapa `latest.py` bukan ikon test?".
+    #[test]
+    fn explain_menampilkan_pemenang_dan_yang_kalah() {
+        let rules = rules();
+
+        let app = rules.explain_file("app.test.ts");
+        let winner = app.winner().expect("harus ada pemenang");
+        assert_eq!(winner.matched_by, MatchedBy::Suffix);
+        assert_eq!(winner.pattern, ".test.ts");
+        // Ekstensi juga cocok, tapi kalah prioritas terhadap akhiran.
+        assert!(
+            app.kandidat
+                .iter()
+                .any(|k| k.matched_by == MatchedBy::Extension && k.pattern == ".ts"),
+            "ekstensi yang kalah harus tetap terlihat: {:?}",
+            app.kandidat
+        );
+
+        let biasa = rules.explain_file("main.go");
+        assert!(biasa
+            .kandidat
+            .iter()
+            .all(|k| k.matched_by == MatchedBy::Extension));
+
+        let folder = rules.explain_dir("node_modules");
+        assert_eq!(
+            folder.winner().map(|k| k.matched_by),
+            Some(MatchedBy::WellKnownFolder)
+        );
+
+        let tak_ada = rules.explain_file("zzz.qqq");
+        assert!(
+            tak_ada.winner().is_none(),
+            "tanpa aturan: winner harus None"
+        );
+    }
+
     #[test]
     fn pemakaian_dim_terbatas() {
         let rules = rules();

@@ -11,6 +11,8 @@
 
 use std::env;
 
+/// Lebar terminal, dalam sel: variabel `COLUMNS` dulu, lalu tanya sistem.
+/// `None` kalau tidak bisa diketahui — pemanggil memakai nilai bawaannya.
 pub fn width() -> Option<usize> {
     env::var("COLUMNS")
         .ok()

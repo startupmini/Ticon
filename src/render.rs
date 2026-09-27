@@ -15,6 +15,8 @@ use crate::mapping::Rules;
 /// Jarak antar kolom. Cukup untuk ikon + satu spasi tanpa terlihat rapat.
 pub const GAP: usize = 2;
 
+/// Bungkus `text` dengan escape ANSI untuk warna `color`, atau kembalikan
+/// apa adanya kalau warna dimatikan atau nama warnanya tidak dikenal.
 pub fn paint(rules: &Rules, enabled: bool, color: &str, text: &str) -> String {
     if !enabled {
         return text.to_string();
@@ -70,9 +72,13 @@ pub fn sanitize(text: &str) -> Cow<'_, str> {
     Cow::Owned(out)
 }
 
+/// Satu entri siap ditulis: teks yang sudah berwarna untuk layar, dan lebar
+/// tampilannya yang dihitung dari teks polos.
 #[derive(Debug, Clone)]
 pub struct Item {
+    /// Teks dengan escape ANSI; inilah yang ditulis ke stdout.
     pub painted: String,
+    /// Lebar tampilan dalam sel, diukur tanpa escape.
     pub width: usize,
 }
 

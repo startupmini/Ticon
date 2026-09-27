@@ -1,4 +1,22 @@
-//! `ikon` — ikon minimalis dan flat untuk terminal.
+//! `ticon` — pustaka pemetaan ikon, plus perintah `ikon` untuk terminal.
+//!
+//! Dua hal dalam satu paket:
+//!
+//! * **Pustaka** `ticon`: memuat aturan dari `icons.toml` lalu menjawab
+//!   "nama ini dapat glyph apa, warna apa, dan kenapa". Hasilnya
+//!   ([`mapping::Icon`]) berisi karakter dan **nama** warna — bukan string
+//!   ANSI — supaya pemanggil (TUI, skrip, aplikasi Rust lain) yang memilih
+//!   cara mewarnainya sendiri.
+//! * **Perintah** `ikon`: menampilkan direktori dengan ikon, lewat
+//!   `--list`, `--gallery`, `--audit`, `--explain`, dan `--export`.
+//!
+//! ```no_run
+//! let rules = ticon::mapping::Rules::load()?;
+//! let glyphs = ticon::glyph::Glyphs::bundled();
+//! let icon = rules.icon_for(&glyphs, "main.rs");
+//! println!("{:?} {} {:?}", icon.ch, icon.color, icon.matched_by);
+//! # Ok::<(), String>(())
+//! ```
 //!
 //! Alur kerjanya sengaja dibikin sempit:
 //!
@@ -12,6 +30,8 @@
 //! dipakai, dan renderer TIDAK PERNAH tahu aturan pencocokan. Semua aturan
 //! hidup di `icons.toml`, semua codepoint hidup di `assets/glyphs.toml`, dan
 //! kode di sini cuma menyambungkan keduanya.
+
+#![warn(missing_docs)]
 
 pub mod cli;
 pub mod glyph;
@@ -32,6 +52,8 @@ use mapping::Rules;
 use render::Item;
 use unicode_width::UnicodeWidthStr;
 
+/// Jalankan perintah: parse argumen dari [`std::env::args`], kerjakan, lalu
+/// kembalikan exit code-nya. Titik masuk perintah `ikon`.
 pub fn run() -> ExitCode {
     match execute() {
         Ok(code) => code,
@@ -61,6 +83,18 @@ fn execute() -> Result<ExitCode, String> {
             let rules = Rules::load()?;
             let glyphs = Glyphs::bundled();
             audit(&rules, &glyphs)
+        }
+        Command::Explain(name) => {
+            let rules = Rules::load()?;
+            let glyphs = Glyphs::bundled();
+            print_explain(&rules, &glyphs, &name);
+            Ok(ExitCode::SUCCESS)
+        }
+        Command::Export => {
+            let rules = Rules::load()?;
+            let glyphs = Glyphs::bundled();
+            print_export(&rules, &glyphs);
+            Ok(ExitCode::SUCCESS)
         }
         Command::Mapping(options) => {
             cek_tanpa_path("--list", &options)?;
@@ -458,6 +492,134 @@ fn sorted(values: &[String]) -> Vec<String> {
     let mut values = values.to_vec();
     values.sort();
     values
+}
+
+/// `--explain`: kenapa sebuah nama mendapat ikon itu.
+///
+/// Kalau nama itu benar-benar ada di disk, jenisnya diambil dari sana; kalau
+/// tidak, diasumsikan berkas — dan asumsi itu ditulis di keluaran supaya tidak
+/// menyesatkan.
+fn print_explain(rules: &Rules, glyphs: &Glyphs, name: &str) {
+    let is_dir = fs::metadata(name).is_ok_and(|meta| meta.is_dir());
+    let (icon, penjelasan) = if is_dir {
+        (rules.icon_for_dir(glyphs, name), rules.explain_dir(name))
+    } else {
+        (rules.icon_for(glyphs, name), rules.explain_file(name))
+    };
+
+    println!("{name}   ({})", if is_dir { "folder" } else { "berkas" });
+    // Tanpa perataan: glyph Nerd Font occupying dua sel meski `unicode-width`
+    // menghitungnya satu, jadi kolom yang "lurus" di sini justru menipu.
+    println!(
+        "  glyph  {}   warna {}",
+        icon.ch
+            .map(|c| c.to_string())
+            .unwrap_or_else(|| "(tidak ada di tabel)".to_string()),
+        icon.color
+    );
+
+    match penjelasan.winner() {
+        Some(winner) => {
+            println!(
+                "  menang  {:<16} {:?}",
+                winner.matched_by.label(),
+                winner.pattern
+            );
+            for kalah in penjelasan.kandidat.iter().skip(1) {
+                println!(
+                    "  kalah   {:<16} {:?}",
+                    kalah.matched_by.label(),
+                    kalah.pattern
+                );
+            }
+            if penjelasan.kandidat.len() == 1 {
+                println!("  (tidak ada aturan lain yang cocok)");
+            }
+        }
+        None => {
+            let bawaan = if is_dir {
+                mapping::DEFAULT_DIR_CATEGORY
+            } else {
+                mapping::DEFAULT_FILE_CATEGORY
+            };
+            println!("  (tidak ada aturan yang cocok; jatuh ke kategori bawaan `{bawaan}`)");
+        }
+    }
+}
+
+/// `--export`: seluruh aturan sebagai TSV ke stdout.
+///
+/// Format datar tanpa dependensi, jadi enak dibaca `awk`, skrip shell, dan
+/// tool non-Rust. Kolomnya: jenis, kunci, nama glyph, codepoint, keluarga,
+/// warna. `jenis` membedakan `ext`/`nama`/`awalan`/`akhiran`/`dir`/`keluarga`
+/// supaya pemanggil bisa menyusun ulang urutan resolusi yang sama.
+fn print_export(rules: &Rules, glyphs: &Glyphs) {
+    println!("jenis\tkunci\tglyph\tcodepoint\tkeluarga\twarna");
+
+    for (keluarga, warna) in &rules.families {
+        println!("keluarga\t{keluarga}\t-\t-\t-\t{warna}");
+    }
+    for category in rules.categories.values() {
+        for ext in &category.ext {
+            let glyph = category
+                .by_ext
+                .get(ext)
+                .cloned()
+                .unwrap_or_else(|| category.glyph.clone());
+            baris_export("ext", ext, &glyph, &category.family, rules, glyphs);
+        }
+        for nilai in &category.names {
+            baris_export(
+                "nama",
+                nilai,
+                &category.glyph,
+                &category.family,
+                rules,
+                glyphs,
+            );
+        }
+        for nilai in &category.prefix {
+            baris_export(
+                "awalan",
+                nilai,
+                &category.glyph,
+                &category.family,
+                rules,
+                glyphs,
+            );
+        }
+        for nilai in &category.suffix {
+            baris_export(
+                "akhiran",
+                nilai,
+                &category.glyph,
+                &category.family,
+                rules,
+                glyphs,
+            );
+        }
+    }
+    for (nama, rule) in &rules.dirs {
+        baris_export("dir", nama, &rule.glyph, &rule.family, rules, glyphs);
+    }
+}
+
+fn baris_export(
+    jenis: &str,
+    kunci: &str,
+    glyph: &str,
+    keluarga: &str,
+    rules: &Rules,
+    glyphs: &Glyphs,
+) {
+    let codepoint = glyphs
+        .get(glyph)
+        .map(|c| format!("0x{:x}", c as u32))
+        .unwrap_or_else(|| "-".to_string());
+    println!(
+        "{jenis}\t{kunci}\t{glyph}\t{codepoint}\t{keluarga}\t{}",
+        rules.color_of(keluarga)
+    );
 }
 
 /// Cetak daftar nilai dengan pembungkusan baris, menjorok di bawah labelnya.

@@ -26,10 +26,11 @@ ditinjau seperti perubahan keamanan, bukan seperti chores biasa.
   menjalankan apa pun yang ia baca dari isi folder.
 - Nama berkas yang memuat karakter kontrol **tidak dieksekusi** — karakter itu
   ditampilkan sebagai `\u{1b}`. Ini perilaku yang diinginkan, bukan kebocoran.
-- Versi sebelum 0.1 tidak didukung; laporkan pada `main`.
+- Laporan untuk versi lama tetap diterima, tapi hanya untuk kerentanan keamanan.
 
 ## Versi yang didukung
 
 | Versi | Didukung |
 |---|---|
-| 0.1.x | ya |
+| 0.2.x | ya |
+| 0.1.x | hanya kerentanan keamanan |
