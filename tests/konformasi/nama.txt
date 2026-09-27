@@ -56,3 +56,8 @@ Foto.JPEG
 unknown.
 1.rs
 a.b
+catatan rheumatisme.txt
+ünïcode.md
+emoji-🎉.txt
+tres-long-dans-le-nom-de-fichier-qui-ne-ressemble-a-rien.rs
+RUANG.KAPITAL.GAYA.LAIN

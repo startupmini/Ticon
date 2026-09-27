@@ -72,12 +72,18 @@ pub struct Category {
 }
 
 /// Aturan folder well-known dari bagian `[dirs]`: bentuk dan keluarga warna.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct DirRule {
     /// Nama glyph untuk folder ini.
     pub glyph: String,
     /// Keluarga warnanya; lihat [`Category::family`].
     pub family: String,
+    /// Petunjuk lebar sel; kosong berarti pakai nilai bawaan kontrak.
+    #[serde(default)]
+    pub lebar: Option<usize>,
+    /// Glyph pengganti kalau font tidak memilikinya.
+    #[serde(default)]
+    pub fallback: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -121,14 +127,41 @@ impl Prioritas {
         self as u8
     }
 
-    /// Nilai kolom `jenis` di ekspor.
-    pub fn jenis(self) -> &'static str {
+    /// Nilai `kind` di kontrak netral. Nilai ini **harus** dalam huruf
+    /// besar-kecil bahasa Inggris dan tidak pernah berubah: berbeda dengan
+    /// [`Prioritas::label`], yang cuma untuk pesan terminal.
+    pub fn kind(self) -> &'static str {
         match self {
-            Prioritas::Nama => "nama",
+            Prioritas::Nama => "name",
+            Prioritas::Akhiran => "suffix",
+            Prioritas::Awalan => "prefix",
+            Prioritas::Ekstensi => "ext",
+            Prioritas::Bawaan => "default",
+        }
+    }
+
+    /// Kebalikan dari [`Prioritas::kind`], untuk pembacaan peta netral.
+    /// `Bawaan` tidak pernah dikembalikan: di kontrak, kategori bawaan bukan
+    /// tahap pencocokan melainkan hasil akhir, jadi ia tidak punya `kind`.
+    pub fn dari_kind(kind: &str) -> Option<Self> {
+        match kind {
+            "name" => Some(Prioritas::Nama),
+            "suffix" => Some(Prioritas::Akhiran),
+            "prefix" => Some(Prioritas::Awalan),
+            "ext" => Some(Prioritas::Ekstensi),
+            _ => None,
+        }
+    }
+
+    /// Label Bahasa Indonesia, hanya untuk pesan ke pengguna. Berbeda dengan
+    /// [`Prioritas::kind`]: yang ini boleh berubah, yang itu tidak.
+    pub fn label(self) -> &'static str {
+        match self {
+            Prioritas::Nama => "nama persis",
             Prioritas::Akhiran => "akhiran",
             Prioritas::Awalan => "awalan",
-            Prioritas::Ekstensi => "ext",
-            Prioritas::Bawaan => "bawaan",
+            Prioritas::Ekstensi => "ekstensi",
+            Prioritas::Bawaan => "kategori bawaan",
         }
     }
 }
@@ -336,14 +369,7 @@ impl Rules {
                 ));
             }
         }
-        for (name, category) in &file.categories {
-            if !file.families.contains_key(&category.family) {
-                return Err(format!(
-                    "kategori '{name}' memakai keluarga '{}' yang tidak ada di [families]",
-                    category.family
-                ));
-            }
-        }
+        cek_keluarga(&file.categories, &file.families)?;
         for (name, rule) in &file.dirs {
             if !file.families.contains_key(&rule.family) {
                 return Err(format!(
@@ -442,6 +468,60 @@ impl Rules {
 
         sort_longest_first(&mut self.prefixes);
         sort_longest_first(&mut self.suffixes);
+    }
+
+    /// Bangun `Rules` dari komponen yang sudah jadi, lalu indekskan. Satu
+    /// pintu masuk untuk peta netral `ticon-map/2`, supaya pemetaan yang ditulis
+    /// tangan melewati pemeriksaan yang sama dengan `icons.toml`.
+    ///
+    /// `palette` dipakai apa adanya; peta netral sengaja tidak membawa kode
+    /// SGR, karena itu urusan terminal, bukan peta ikon.
+    pub fn dari_bagian(
+        palette: BTreeMap<String, String>,
+        families: BTreeMap<String, String>,
+        categories: BTreeMap<String, Category>,
+        dirs: BTreeMap<String, DirRule>,
+    ) -> Result<Self, String> {
+        if families.is_empty() {
+            return Err("`families` kosong: peta tidak punya satu pun keluarga".to_string());
+        }
+        for (family, color) in &families {
+            if !palette.contains_key(color) {
+                return Err(format!(
+                    "keluarga '{family}' memakai warna '{color}' yang tidak ada di palet"
+                ));
+            }
+        }
+        cek_keluarga(&categories, &families)?;
+        for (name, rule) in &dirs {
+            if !families.contains_key(&rule.family) {
+                return Err(format!(
+                    "folder '{name}' memakai keluarga '{}' yang tidak ada di `families`",
+                    rule.family
+                ));
+            }
+        }
+
+        let mut rules = Self {
+            palette,
+            families,
+            categories,
+            dirs,
+            by_name: BTreeMap::new(),
+            by_ext: BTreeMap::new(),
+            prefixes: Vec::new(),
+            suffixes: Vec::new(),
+            overlaps: Vec::new(),
+        };
+        for key in [DEFAULT_DIR_CATEGORY, DEFAULT_FILE_CATEGORY] {
+            if !rules.categories.contains_key(key) {
+                return Err(format!(
+                    "kategori bawaan '{key}' tidak ada; `defaults` wajib menyebutnya"
+                ));
+            }
+        }
+        rules.build_index();
+        Ok(rules)
     }
 
     /// Ikon untuk nama folder, siap pakai. `matched_by` menjadi
@@ -817,6 +897,24 @@ impl Rules {
 
         findings
     }
+}
+
+/// Tiap kategori harus menyebut keluarga yang benar-benar ada. Satu gerbang
+/// untuk dua jalur pemuatan (TOML dan peta netral), supaya keduanya tidak bisa
+/// berbeda pendapat soal keluarga mana yang sah.
+fn cek_keluarga(
+    categories: &BTreeMap<String, Category>,
+    families: &BTreeMap<String, String>,
+) -> Result<(), String> {
+    for (name, category) in categories {
+        if !families.contains_key(&category.family) {
+            return Err(format!(
+                "kategori '{name}' memakai keluarga '{}' yang tidak ada di [families]",
+                category.family
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn override_for(category: &Category, key: &str) -> Option<String> {

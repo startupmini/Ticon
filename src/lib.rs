@@ -35,7 +35,9 @@
 
 pub mod cli;
 pub mod glyph;
+pub mod json;
 pub mod mapping;
+pub mod peta;
 pub mod render;
 pub mod terminal;
 
@@ -49,6 +51,22 @@ use std::time::SystemTime;
 use cli::{Command, Format, Options, Sort};
 use glyph::Glyphs;
 use mapping::{Prioritas, Rules};
+
+/// Lebar sel yang diasumsikan untuk satu glyph Nerd Font kalau data tidak
+/// menyebut lain.
+///
+/// **Nilai ini belum diukur** — ia warisan dari perilaku renderer lama, bukan
+/// hasil pengukuran. Glyph Nerd Font bersifat *ambiguous-width*: banyak
+/// terminal modern merendernya satu sel, sebagian lagi dua. Karena itu angka
+/// ini hanya titik awal, dan **`ticon` sendiri tidak memakainya** untuk
+/// merender: aplikasi yang tahu lebar glyph di terminalnya wajib mengukur
+/// sendiri. Atur lewat `width` per aturan kalau punya jawaban yang lebih baik.
+pub const LEBAR_GLIF_BAWAAN: usize = 1;
+
+/// Alamat JSON Schema untuk kontrak ini. Dipakai di berkas ekspor supaya
+/// editor dan validator bisa menautkannya; pemuat di `peta.rs` mengabaikan
+/// kunci `$schema` (alat lain boleh menambahkannya).
+pub const SKEMA_URL: &str = "https://ticon.pages.dev/schema/ticon-map-2.json";
 use render::Item;
 use unicode_width::UnicodeWidthStr;
 
@@ -61,6 +79,16 @@ pub fn run() -> ExitCode {
             eprintln!("ikon: {message}");
             ExitCode::FAILURE
         }
+    }
+}
+
+/// Muat peta ikon: dari `icons.toml` bawaan, atau dari peta netral yang diminta
+/// pengguna dengan `--icons-map`. Satu pintu masuk supaya semua perintah
+/// memakai sumber yang sama.
+fn muat_rules(map: &Option<PathBuf>) -> Result<Rules, String> {
+    match map {
+        Some(path) => peta::rules_dari_berkas(path),
+        None => Rules::load(),
     }
 }
 
@@ -80,38 +108,38 @@ fn execute() -> Result<ExitCode, String> {
         }
         Command::Error(message) => Err(format!("{message}\n\nCoba `ticon --help`")),
         Command::Audit => {
-            let rules = Rules::load()?;
+            let rules = muat_rules(&None)?;
             let glyphs = Glyphs::bundled();
             audit(&rules, &glyphs)
         }
-        Command::Explain(name) => {
-            let rules = Rules::load()?;
+        Command::Explain(name, icons_map) => {
+            let rules = muat_rules(&icons_map)?;
             let glyphs = Glyphs::bundled();
             print_explain(&rules, &glyphs, &name);
             Ok(ExitCode::SUCCESS)
         }
-        Command::Export(format) => {
-            let rules = Rules::load()?;
+        Command::Export(format, icons_map) => {
+            let rules = muat_rules(&icons_map)?;
             let glyphs = Glyphs::bundled();
             print_export(&rules, &glyphs, format);
             Ok(ExitCode::SUCCESS)
         }
         Command::Mapping(options) => {
             cek_tanpa_path("--list", &options)?;
-            let rules = Rules::load()?;
+            let rules = muat_rules(&options.icons_map)?;
             let glyphs = Glyphs::bundled();
             print_mapping(&rules, &glyphs, &options);
             Ok(ExitCode::SUCCESS)
         }
         Command::Gallery(options) => {
             cek_tanpa_path("--gallery", &options)?;
-            let rules = Rules::load()?;
+            let rules = muat_rules(&options.icons_map)?;
             let glyphs = Glyphs::bundled();
             print_gallery(&rules, &glyphs, &options);
             Ok(ExitCode::SUCCESS)
         }
         Command::Dir(options) => {
-            let rules = Rules::load()?;
+            let rules = muat_rules(&options.icons_map)?;
             let glyphs = Glyphs::bundled();
             list(&rules, &glyphs, &options)
         }
@@ -552,21 +580,22 @@ fn print_explain(rules: &Rules, glyphs: &Glyphs, name: &str) {
 struct AturanEkspor {
     /// `None` untuk folder well-known: itu bukan tahap resolusi berkas.
     prioritas: Option<Prioritas>,
-    /// Nilai kolom `jenis`: `nama`, `akhiran`, `awalan`, `ext`, atau `dir`.
-    jenis: &'static str,
-    kunci: String,
+    /// Nilai `kind` di kontrak: `name`, `suffix`, `prefix`, `ext`, atau `dir`.
+    kind: &'static str,
+    key: String,
     glyph: String,
     codepoint: Option<u32>,
-    /// Keluarga warnanya. Ini bagian kontrak yang utama: konsumen yang punya
-    /// tema sendiri memetakan `keluarga` ke gaya miliknya.
-    keluarga: String,
+    /// Keluarga warnanya. Ini bagian kontrak yang utama: pemanggil yang punya
+    /// tema sendiri memetakan `family` ke gayanya.
+    family: String,
     /// Warna bawaan `ticon`. Boleh diabaikan sepenuhnya.
-    warna: String,
-    /// Petunjuk lebar sel glyph; keputusan akhir tetap di aplikasi.
-    lebar: usize,
-    /// Teks pengganti kalau glyph tidak bisa ditampilkan (mis. tanpa
-    /// Nerd Font).
-    fallback: String,
+    color: String,
+    /// Petunjuk lebar sel glyph. `None` berarti tidak ada, dan konsumen
+    /// sebaiknya memakai `width_default`.
+    width: Option<usize>,
+    /// Teks pengganti kalau glyph tidak bisa ditampilkan. `None` berarti tidak
+    /// ada — lebih baik tidak ada daripada isinya tidak berbohong.
+    fallback: Option<String>,
 }
 
 /// `--export`: seluruh aturan ke stdout, TSV atau JSON.
@@ -574,37 +603,57 @@ struct AturanEkspor {
 /// Keduanya dibangun dari daftar [`AturanEkspor`] yang sama, jadi isi ekspor
 /// hanya ada di satu tempat.
 fn print_export(rules: &Rules, glyphs: &Glyphs, format: Format) {
-    let aturan = aturan_ekspor(rules, glyphs);
-    match format {
-        Format::Tsv => print_export_tsv(rules, &aturan),
-        Format::Json => print_export_json(rules, glyphs, &aturan),
+    let teks = match format {
+        Format::Tsv => ekspor_tsv(rules, glyphs),
+        Format::Json => ekspor_json(rules, glyphs),
+    };
+    print!("{teks}");
+}
+
+/// Bentuk TSV sebagai teks: datar, tanpa dependensi, enak dibaca `awk` dan
+/// skrip shell. Kolomnya tidak berubah sejak 0.3.0 — JSON yang membawa skema.
+///
+/// Diekspos supaya bisa dipakai tanpa menjalankan perintah, dan supaya tes
+/// bisa memeriksa isinya tanpa memproses biner.
+pub fn ekspor_tsv(rules: &Rules, glyphs: &Glyphs) -> String {
+    let mut out = String::from("jenis\tkunci\tglyph\tcodepoint\tkeluarga\twarna\n");
+    for (keluarga, warna) in &rules.families {
+        out.push_str(&format!("keluarga\t{keluarga}\t-\t-\t-\t{warna}\n"));
     }
+    for a in aturan_ekspor(rules, glyphs) {
+        let codepoint = a
+            .codepoint
+            .map(|c| format!("0x{c:x}"))
+            .unwrap_or_else(|| "-".to_string());
+        out.push_str(&format!(
+            "{}\t{}\t{}\t{codepoint}\t{}\t{}\n",
+            a.kind, a.key, a.glyph, a.family, a.color
+        ));
+    }
+    out
 }
 
 fn aturan_ekspor(rules: &Rules, glyphs: &Glyphs) -> Vec<AturanEkspor> {
     let baris = |prioritas: Option<Prioritas>,
-                 jenis: &'static str,
-                 kunci: &str,
+                 kind: &'static str,
+                 key: &str,
                  glyph: &str,
-                 keluarga: &str,
-                 lebar: usize,
-                 fallback: &str| AturanEkspor {
+                 family: &str,
+                 width: Option<usize>,
+                 fallback: Option<String>| AturanEkspor {
         prioritas,
-        jenis,
-        kunci: kunci.to_string(),
+        kind,
+        key: key.to_string(),
         glyph: glyph.to_string(),
         codepoint: glyphs.get(glyph).map(|c| c as u32),
-        keluarga: keluarga.to_string(),
-        warna: rules.color_of(keluarga).to_string(),
-        lebar,
-        fallback: fallback.to_string(),
+        family: family.to_string(),
+        color: rules.color_of(family).to_string(),
+        width,
+        fallback,
     };
 
     let mut keluar = Vec::new();
     for category in rules.categories.values() {
-        let lebar = category.lebar.unwrap_or(render::LEBAR_GLYPH_BAWAAN);
-        let fallback = category.fallback.as_deref().unwrap_or("?");
-
         for ext in &category.ext {
             let glyph = category
                 .by_ext
@@ -613,12 +662,12 @@ fn aturan_ekspor(rules: &Rules, glyphs: &Glyphs) -> Vec<AturanEkspor> {
                 .unwrap_or_else(|| category.glyph.clone());
             keluar.push(baris(
                 Some(Prioritas::Ekstensi),
-                Prioritas::Ekstensi.jenis(),
+                Prioritas::Ekstensi.kind(),
                 ext,
                 &glyph,
                 &category.family,
-                lebar,
-                fallback,
+                category.lebar,
+                category.fallback.clone(),
             ));
         }
         for (nilai, prioritas) in category
@@ -630,12 +679,12 @@ fn aturan_ekspor(rules: &Rules, glyphs: &Glyphs) -> Vec<AturanEkspor> {
         {
             keluar.push(baris(
                 Some(prioritas),
-                prioritas.jenis(),
+                prioritas.kind(),
                 nilai,
                 &category.glyph,
                 &category.family,
-                lebar,
-                fallback,
+                category.lebar,
+                category.fallback.clone(),
             ));
         }
     }
@@ -646,111 +695,109 @@ fn aturan_ekspor(rules: &Rules, glyphs: &Glyphs) -> Vec<AturanEkspor> {
             nama,
             &rule.glyph,
             &rule.family,
-            render::LEBAR_GLYPH_BAWAAN,
-            "?",
+            rule.lebar,
+            rule.fallback.clone(),
         ));
     }
     keluar
 }
 
-/// Bentuk TSV: datar, tanpa dependensi, enak dibaca `awk` dan skrip shell.
-/// Kolomnya tidak berubah sejak 0.3.0; JSON yang membawa skema.
-fn print_export_tsv(rules: &Rules, aturan: &[AturanEkspor]) {
-    println!("jenis\tkunci\tglyph\tcodepoint\tkeluarga\twarna");
-    for (keluarga, warna) in &rules.families {
-        println!("keluarga\t{keluarga}\t-\t-\t-\t{warna}");
-    }
-    for a in aturan {
-        let codepoint = a
-            .codepoint
-            .map(|c| format!("0x{c:x}"))
-            .unwrap_or_else(|| "-".to_string());
-        println!(
-            "{}\t{}\t{}\t{}\t{}\t{}",
-            a.jenis, a.kunci, a.glyph, codepoint, a.keluarga, a.warna
-        );
-    }
-}
-
-/// Bentuk JSON: kontrak netral untuk konsumen non-Rust.
+/// Bentuk JSON sebagai teks: kontrak netral untuk konsumen non-Rust.
 ///
 /// Yang membuatnya netral: urutan resolver ikut keluar sebagai angka
-/// (`priority`), warna bawaan tinggal satu field yang boleh diabaikan, dan
-/// lebar sel serta glyph pengganti ikut dibawa. Konsumen tidak perlu menebak
-/// urutan yang benar, tidak perlu memakai palet `ticon`, dan tidak wajib punya
-/// Nerd Font. Ditulis tangan supaya tidak menambah dependensi hanya untuk
-/// serialisasi.
-fn print_export_json(rules: &Rules, glyphs: &Glyphs, aturan: &[AturanEkspor]) {
-    println!("{{");
-    println!("  \"schema\": \"ticon-map/1\",");
-    println!("  \"lebar_default\": {},", render::LEBAR_GLYPH_BAWAAN);
+/// `priority` (jadi implementasi lain tidak perlu menebak urutan yang benar),
+/// warna bawaan (`color`) tinggal satu field yang boleh diabaikan — yang
+/// dipakai memetakan `family` ke gaya sendiri — dan `width` serta `fallback`
+/// ikut dibawa **hanya kalau diisi**, supaya konsumen tanpa Nerd Font punya
+/// pilihan tanpa dipaksa menebak.
+///
+/// Ditulis tangan supaya tidak menambah dependensi hanya untuk serialisasi.
+pub fn ekspor_json(rules: &Rules, glyphs: &Glyphs) -> String {
+    let aturan = aturan_ekspor(rules, glyphs);
+    let mut out = String::new();
+    let mut baris = |teks: &str| {
+        out.push_str(teks);
+        out.push('\n');
+    };
+    baris("{");
+    baris(&format!("  \"$schema\": \"{}\",", SKEMA_URL));
+    baris(&format!("  \"schema\": \"{}\",", peta::SKEMA));
+    baris(&format!("  \"width_default\": {LEBAR_GLIF_BAWAAN},"));
 
-    let urutan: Vec<String> = [
-        Prioritas::Nama,
-        Prioritas::Akhiran,
-        Prioritas::Awalan,
-        Prioritas::Ekstensi,
-        Prioritas::Bawaan,
-    ]
-    .iter()
-    .map(|p| json_teks(p.jenis()))
-    .collect();
-    println!("  \"urutan\": [{}],", urutan.join(", "));
+    let urutan: Vec<String> = Prioritas::URUTAN
+        .iter()
+        .map(|p| json_teks(p.kind()))
+        .collect();
+    baris(&format!("  \"order\": [{}],", urutan.join(", ")));
 
     let keluarga: Vec<String> = rules
         .families
         .iter()
         .map(|(nama, warna)| format!("{}: {}", json_teks(nama), json_teks(warna)))
         .collect();
-    println!("  \"keluarga\": {{{}}},", keluarga.join(", "));
+    baris(&format!("  \"families\": {{{}}},", keluarga.join(", ")));
 
-    let bawaan = |nama_kategori: &str| -> String {
-        let Some(category) = rules.categories.get(nama_kategori) else {
+    let bawaan = |kategori: &str| -> String {
+        let Some(cat) = rules.categories.get(kategori) else {
             return "null".to_string();
         };
-        let warna = rules.color_of(&category.family);
-        let codepoint = glyphs
-            .get(&category.glyph)
-            .map(|c| (c as u32).to_string())
-            .unwrap_or_else(|| "null".to_string());
-        format!(
-            "{{\"glyph\": {}, \"codepoint\": {codepoint}, \"keluarga\": {}, \"warna\": {}, \"fallback\": \"?\"}}",
-            json_teks(&category.glyph),
-            json_teks(&category.family),
-            json_teks(warna)
-        )
+        let mut bagian = vec![
+            format!("\"glyph\": {}", json_teks(&cat.glyph)),
+            format!(
+                "\"codepoint\": {}",
+                glyphs
+                    .get(&cat.glyph)
+                    .map_or_else(|| "null".to_string(), |c| (c as u32).to_string())
+            ),
+            format!("\"family\": {}", json_teks(&cat.family)),
+            format!("\"color\": {}", json_teks(rules.color_of(&cat.family))),
+        ];
+        if let Some(lebar) = cat.lebar {
+            bagian.push(format!("\"width\": {lebar}"));
+        }
+        if let Some(ganti) = &cat.fallback {
+            bagian.push(format!("\"fallback\": {}", json_teks(ganti)));
+        }
+        format!("{{{}}}", bagian.join(", "))
     };
-    println!(
-        "  \"bawaan\": {{\"berkas\": {}, \"folder\": {}}},",
+    baris(&format!(
+        "  \"defaults\": {{\"file\": {}, \"dir\": {}}},",
         bawaan(mapping::DEFAULT_FILE_CATEGORY),
         bawaan(mapping::DEFAULT_DIR_CATEGORY)
-    );
+    ));
 
-    println!("  \"aturan\": [");
+    baris("  \"rules\": [");
     let total = aturan.len();
     for (index, a) in aturan.iter().enumerate() {
-        let prioritas = a
-            .prioritas
-            .map(|p| p.angka().to_string())
-            .unwrap_or_else(|| "null".to_string());
-        let codepoint = a
-            .codepoint
-            .map(|c| c.to_string())
-            .unwrap_or_else(|| "null".to_string());
+        let mut bagian = vec![
+            format!("\"kind\": {}", json_teks(a.kind)),
+            format!(
+                "\"priority\": {}",
+                a.prioritas
+                    .map_or_else(|| "null".to_string(), |p| p.angka().to_string())
+            ),
+            format!("\"key\": {}", json_teks(&a.key)),
+            format!("\"family\": {}", json_teks(&a.family)),
+            format!("\"color\": {}", json_teks(&a.color)),
+            format!("\"glyph\": {}", json_teks(&a.glyph)),
+            format!(
+                "\"codepoint\": {}",
+                a.codepoint
+                    .map_or_else(|| "null".to_string(), |c| c.to_string())
+            ),
+        ];
+        if let Some(lebar) = a.width {
+            bagian.push(format!("\"width\": {lebar}"));
+        }
+        if let Some(ganti) = &a.fallback {
+            bagian.push(format!("\"fallback\": {}", json_teks(ganti)));
+        }
         let koma = if index + 1 < total { "," } else { "" };
-        println!(
-            "    {{\"jenis\": {}, \"priority\": {prioritas}, \"kunci\": {}, \"keluarga\": {}, \"warna\": {}, \"glyph\": {}, \"codepoint\": {codepoint}, \"lebar\": {}, \"fallback\": {}}}{koma}",
-            json_teks(a.jenis),
-            json_teks(&a.kunci),
-            json_teks(&a.keluarga),
-            json_teks(&a.warna),
-            json_teks(&a.glyph),
-            a.lebar,
-            json_teks(&a.fallback),
-        );
+        baris(&format!("    {{{}}}{koma}", bagian.join(", ")));
     }
-    println!("  ]");
-    println!("}}");
+    baris("  ]");
+    baris("}");
+    out
 }
 
 /// Bungkus `teks` sebagai string JSON, meloloskan karakter yang perlu.
@@ -900,6 +947,7 @@ mod tests {
             color: true,
             sort: Sort::Name,
             width: None,
+            icons_map: None,
         }
     }
 

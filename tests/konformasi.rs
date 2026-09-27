@@ -18,7 +18,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use ticon::glyph::Glyphs;
-use ticon::mapping::{MatchedBy, Rules};
+use ticon::mapping::{MatchedBy, Prioritas, Rules};
 
 const NAMA: &str = include_str!("konformasi/nama.txt");
 
@@ -29,14 +29,14 @@ fn berkas(nama: &str) -> PathBuf {
         .join(nama)
 }
 
-/// Nilai `jenis` dari aturan yang menang, persis seperti ditulis di
-/// `icons.json`, supaya sisi TypeScript cukup membacanya.
+/// Nilai `kind` dari aturan yang menang, persis seperti ditulis di kontrak
+/// `ticon-map/2`, supaya sisi TypeScript cukup membacanya.
 fn jenis(m: MatchedBy) -> &'static str {
     match m.prioritas() {
-        Some(prioritas) => prioritas.jenis(),
+        Some(prioritas) => prioritas.kind(),
         None => match m {
             MatchedBy::WellKnownFolder => "dir",
-            _ => "bawaan",
+            _ => Prioritas::Bawaan.kind(),
         },
     }
 }

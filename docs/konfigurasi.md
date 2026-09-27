@@ -142,6 +142,28 @@ Dua pemenang yang sering ditanyakan:
   supaya `.test.ts` menang atas `.ts`;
 * `arsip.tar.gz` → **arsip**, bukan `.gz` biasa — ekstensi terpanjang menang.
 
+## Peta netral (`ticon-map/2`)
+
+Selain `icons.toml`, peta bisa juga hidup sebagai satu berkas JSON berversi —
+kontrak netral untuk konsumen yang bukan Rust:
+
+```bash
+ticon --export=json > icons.json     # atau: ticon --format json
+ticon --icons-map icons.json src     # memakainya, bahkan di dalam ticon
+```
+
+Berkas netral memakai nama field berbahasa Inggris (`kind`, `key`, `family`,
+`color`, `width`, `fallback`) dengan sengaja: itu yang dibaca program di luar
+repo ini. Dokumen ini dan API Rust tetap bahasa Indonesia. Daftar field-nya ada
+di `schema/ticon-map-2.json`, dan `ticon --icons-map` menolak apa pun yang tidak
+dikenal — salah ketik jadi galat, bukan diabaikan diam-diam.
+
+Dua batasan yang perlu diketahui:
+
+- nama glyph di peta kustom harus nama yang sudah dikenal `ticon` (`nf-md-…`);
+- `width` dan `fallback` hanya ditulis kalau diisi. Tidak ada berarti "tidak
+  diketahui", dan aplikasinya yang memutuskan sendiri.
+
 ## Menambah aturan baru
 
 Contoh: kategori `cad` yang berbagi glyph dengan `model` (boleh — glyph boleh

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ticon.pages.dev/schema/ticon-map-2.json",
+  "title": "Peta ikon netral ticon",
+  "description": "Kontrak data yang dipertukarkan antara ticon dan konsumen non-Rust. Nama field sengaja memakai huruf besar-kecil bahasa Inggris karena ini format yang dibaca mesin di luar repo ini; dokumentasi prose tetap bahasa Indonesia.",
+  "type": "object",
+  "required": ["schema", "width_default", "order", "families", "defaults", "rules"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "schema": { "const": "ticon-map/2" },
+    "width_default": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Lebar sel yang diasumsikan kalau sebuah aturan tidak punya `width`. Hanya petunjuk: glyph Nerd Font bersifat ambiguous-width dan banyak terminal merendernya satu sel. Aplikasi yang tahu lebar glyph di terminalnya wajib mengukur sendiri."
+    },
+    "order": {
+      "type": "array",
+      "items": { "enum": ["name", "suffix", "prefix", "ext"] },
+      "minItems": 4,
+      "maxItems": 4,
+      "description": "Tahap pencocokan, dari yang paling spesifik. Warna opsional, dan tidak menentukan — kalau tidak ada, urutan kanonik yang dipakai. `default` sengaja TIDAK ada di sini: itu hasil akhir, bukan tahap."
+    },
+    "families": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/warna" },
+      "description": "Keluarga → warna bawaan ticon. Ini peta warna, bukan daftar warna yang boleh dipakai: tiap warna harus punya tepat satu keluarga. Konsumen yang punya tema sendiri boleh mengabaikan seluruh peta ini dan memetakan `family` ke gayanya."
+    },
+    "defaults": {
+      "type": "object",
+      "required": ["file", "dir"],
+      "additionalProperties": false,
+      "description": "Kategori bawaan: dipakai saat tidak ada aturan yang cocok.",
+      "properties": {
+        "file": { "$ref": "#/$defs/kategori" },
+        "dir": { "$ref": "#/$defs/kategori" }
+      }
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/aturan" }
+    }
+  },
+  "$defs": {
+    "warna": {
+      "enum": ["red", "green", "yellow", "blue", "magenta", "cyan", "white", "dim"],
+      "description": "Nama warna dari palet ANSI 16 ticon. Pengguna peta kustom hanya boleh memakai nama yang ada di sini, karena kode SGR-nya hidup di ticon, bukan di peta."
+    },
+    "kategori": {
+      "type": "object",
+      "required": ["glyph", "family", "color", "codepoint"],
+      "additionalProperties": false,
+      "properties": {
+        "glyph": { "type": "string", "minLength": 1 },
+        "codepoint": { "type": ["integer", "null"], "minimum": 0 },
+        "family": { "type": "string", "minLength": 1 },
+        "color": { "$ref": "#/$defs/warna" },
+        "width": { "type": "integer", "minimum": 1 },
+        "fallback": { "type": "string", "minLength": 1 }
+      }
+    },
+    "aturan": {
+      "type": "object",
+      "required": ["kind", "priority", "key", "family", "color", "glyph", "codepoint"],
+      "additionalProperties": false,
+      "description": "`width` dan `fallback` sengaja boleh tidak ada: tidak ada lebih jujur daripada isinya menebak. Kalau tidak ada, pakai `width_default` atau pilihan aplikasi sendiri.",
+      "properties": {
+        "kind": { "enum": ["name", "suffix", "prefix", "ext", "dir"] },
+        "priority": {
+          "type": ["integer", "null"],
+          "description": "1 untuk name, 2 suffix, 3 prefix, 4 ext, null untuk dir (folder well-known bukan tahap pencocokan). Kalau diisi, nilainya harus cocok dengan `kind`."
+        },
+        "key": { "type": "string", "minLength": 1 },
+        "family": { "type": "string", "minLength": 1 },
+        "color": { "$ref": "#/$defs/warna" },
+        "glyph": { "type": "string", "minLength": 1 },
+        "codepoint": { "type": ["integer", "null"], "minimum": 0 },
+        "width": { "type": "integer", "minimum": 1 },
+        "fallback": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

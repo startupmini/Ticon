@@ -122,23 +122,37 @@ yang bisa langsung dibaca `awk` atau skrip shell.
 
 ## Pakai sebagai format netral (bukan Rust)
 
-`ticon --export=json` mengeluarkan seluruh peta sebagai satu berkas JSON berversi
-(`ticon-map/1`) — kontrak yang tidak bergantung pada `ticon`:
+`ticon --export=json` mengeluarkan seluruh peta sebagai satu berkas JSON
+(`ticon-map/2`) — kontrak yang tidak bergantung pada `ticon`:
 
 ```bash
 ticon --export=json > icons.json
+# bentuk dengan spasi dan aliasnya juga berlaku:
+ticon --format json > icons.json
 ```
 
-Yang membuatnya bisa dipakai apa adanya, tanpa terikat ke `ticon`:
+Yang membuatnya bisa dipakai apa adanya:
 
-- **Urutan resolver ikut keluar** sebagai angka `priority`, jadi implementasinya
-  tidak perlu menebak tahap mana yang menang lebih dulu.
-- **`keluarga`** adalah bagian kontrak utama (yang dipakai memetakan ke gaya
-  sendiri); `warna` cuma bawaan `ticon` dan boleh diabaikan.
-- **`lebar`** (petunjuk lebar sel glyph) dan **`fallback`** ikut dibawa, sehingga
-  aplikasi tanpa Nerd Font pun bisa merender sesuatu yang berarti.
-- **Bisa ditulis tangan**: 40 ikon sendiri cukup satu berkas dengan format yang
-  sama; `ticon` hanya salah satu pembuatnya.
+- **Urutan resolver ikut keluar** sebagai angka `priority` plus daftar `order`,
+  jadi implementasinya tidak perlu menebak tahap mana yang menang lebih dulu.
+- **`family`** adalah bagian kontrak utama (yang dipakai memetakan ke gaya
+  sendiri); `color` cuma bawaan `ticon` dan boleh diabaikan.
+- **`width` dan `fallback` ikut dibawa, tapi hanya kalau diisi** — jadi tidak
+  ada berarti "tidak diketahui", bukan angka tebakan. Aplikasi tanpa Nerd Font
+  pun bisa merender sesuatu yang berarti.
+- **Bisa ditulis tangan** — dan `ticon` sendiri bisa memakainya:
+
+```bash
+ticon --icons-map icons.json src
+```
+
+  Satu batasan yang jujur: glyph di peta kustom harus nama yang sudah dikenal
+  `ticon` (`nf-md-…`). Peta kustom belum bisa memunculkan glyph baru; itu
+ untuk  konsumen yang punya tabel glyph sendiri.
+
+Skema formalnya ada di [`schema/ticon-map-2.json`](schema/ticon-map-2.json)
+(JSON Schema draft 2020-12). Nama field sengaja berbahasa Inggris karena itu
+format yang dibaca mesin di luar repo ini; dokumentasi tetap bahasa Indonesia.
 
 Resolver referensi untuk TypeScript ada di `examples/ts/`, dan **korpus
 konformasi**-nya (`tests/konformasi/`) dipakai oleh tes Rust *dan* oleh
@@ -152,7 +166,7 @@ ticon --export=json > icons.json
 # 2. buktikan resolver TypeScript punya hasil yang sama dengan Rust
 node --experimental-strip-types examples/ts/cek.ts \
   icons.json tests/konformasi/nama.txt tests/konformasi/harapan.tsv
-# konformasi TypeScript: 51 entri cocok dengan korpus
+# konformasi TypeScript: 56 entri cocok dengan korpus
 ```
 
 Contoh lengkap program yang memakai pustakanya ada di repo:

@@ -1,0 +1,463 @@
+//! Membaca peta netral `ticon-map/2` (hasil `ticon --export=json`) kembali
+//! menjadi [`Rules`], supaya satu berkas bisa dibuat oleh siapa saja — termasuk
+//! ditulis tangan — lalu dipakai juga oleh `ticon` sendiri lewat
+//! `--icons-map`.
+//!
+//! Yang dijaga di sini: nilai yang tidak dikenal **ditolak**, bukan diabaikan
+//! diam-diam. Kalau pemuat ini lebih longgar daripada ekspornya sendiri,
+//! `ticon` bisa diam-diam menampilkan berbeda dari konsumen lain.
+
+use std::collections::BTreeMap;
+use std::path::Path;
+
+use crate::glyph::Glyphs;
+use crate::json::{self, Nilai};
+use crate::mapping::{Category, DirRule, Prioritas, Rules};
+
+/// Id skema yang dibaca versi ini. `ticon-map/1` (dikirim bersama 0.4.0) memakai
+/// nama field berbahasa Indonesia dan **tidak** kompatibel; pesannya
+/// mengarahkan pengguna untuk mengekspor ulang.
+pub const SKEMA: &str = "ticon-map/2";
+
+/// Kunci yang boleh muncul di level atas. `$schema` diperbolehkan karena alat
+///DSM biasanya menambahkannya sendiri; yang lain tidak, supaya salah ketik
+/// (mis. `rulers`) ketahuan, bukan diabaikan.
+const KUNCI_TOP: [&str; 7] = [
+    "schema",
+    "width_default",
+    "order",
+    "families",
+    "defaults",
+    "rules",
+    "glyphs",
+];
+
+/// Baca peta dari teks JSON apa pun, lalu indekskan.
+pub fn rules_dari_json(teks: &str) -> Result<Rules, String> {
+    let akar = json::urai(teks).map_err(|e| format!("peta ikon tidak bisa dibaca: {e}"))?;
+    Rules::from_map(&akar).map_err(|e| format!("peta ikon ditolak: {e}"))
+}
+
+/// Baca peta dari berkas. Pesan galat menyebut nama berkasnya supaya mudah
+/// ditelusuri dari CLI.
+pub fn rules_dari_berkas(path: &Path) -> Result<Rules, String> {
+    let teks = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    rules_dari_json(&teks).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+impl Rules {
+    /// Bangun `Rules` dari peta netral yang sudah diurai. Menyelewati gerbang
+    /// yang sama dengan pemuatan TOML, lewat [`Rules::dari_bagian`].
+    pub fn from_map(akar: &Nilai) -> Result<Self, String> {
+        cek_kunci_top(akar)?;
+        let skema = akar.ambil("schema").and_then(Nilai::teks).unwrap_or("");
+        if skema != SKEMA {
+            return Err(format!(
+                "skema harus \"{SKEMA}\", ditemukan \"{skema}\". Kalau berkas ini \
+                 hasil ekspor 0.4.0, jalankan ulang `ticon --export=json`"
+            ));
+        }
+
+        let families = peta_teks(akar, "families")?;
+        if families.is_empty() {
+            return Err("`families` kosong: peta tidak punya satu pun keluarga".to_string());
+        }
+        // \width_default\ hanya informatif bagi pemuat (tidak dipakai merender),
+        // tapi kalau ada harus masuk akal.
+        if let Some(lebar) = opsional_bulat(akar, "width_default")? {
+            if lebar < 1 {
+                return Err("`width_default` minimal 1".to_string());
+            }
+        }
+
+        let bawaan = Rules::load()?.palette;
+
+        let defaults = akar.ambil("defaults").ok_or_else(|| {
+            "`defaults` wajib ada (kategori bawaan berkas dan folder)".to_string()
+        })?;
+        let bawaan_berkas = sub_node(defaults, "file")?;
+        let bawaan_folder = sub_node(defaults, "dir")?;
+
+        Self::dari_aturan(akar, &families, bawaan_berkas, bawaan_folder, &bawaan)
+    }
+
+    /// Aturan dikelompokkan per pasangan (keluarga, glyph) supaya `Category`
+    /// terbentuk dari data, bukan dari asumsi. Kategori bawaan diknamedai
+    /// `file`/`folder` supaya `resolve_*` dan `--audit` tidak bisa
+    /// membedakan peta ini dari peta bawaan.
+    fn dari_aturan(
+        akar: &Nilai,
+        families: &BTreeMap<String, String>,
+        bawaan_berkas: &Nilai,
+        bawaan_folder: &Nilai,
+        palet: &BTreeMap<String, String>,
+    ) -> Result<Self, String> {
+        let rules = array(akar, "rules")?;
+        if rules.is_empty() {
+            return Err("`rules` kosong: tidak ada aturan yang bisa dipakai".to_string());
+        }
+        cek_urutan(akar)?;
+
+        let glyphs = Glyphs::bundled();
+        let mut kategori: BTreeMap<String, Category> = BTreeMap::new();
+        let mut dirs: BTreeMap<String, DirRule> = BTreeMap::new();
+
+        for (i, rule) in rules.iter().enumerate() {
+            let posisi = format!("rules[{i}]");
+            let kind = wajib_teks(rule, "kind", &posisi)?;
+            let key = wajib_teks(rule, "key", &posisi)?;
+            let family = wajib_teks(rule, "family", &posisi)?;
+            let glyph = wajib_teks(rule, "glyph", &posisi)?;
+            if !families.contains_key(&family) {
+                return Err(format!(
+                    "{posisi}: keluarga \"{family}\" tidak ada di `families`"
+                ));
+            }
+            if key.is_empty() {
+                return Err(format!("{posisi}: `key` tidak boleh kosong"));
+            }
+            let lebar = opsional_bulat(rule, "width")?.and_then(|w| usize::try_from(w).ok());
+            let pengganti = opsional_teks(rule, "fallback")?;
+
+            if kind == "dir" {
+                if key.to_lowercase() != key {
+                    return Err(format!("{posisi}: kunci folder harus huruf kecil"));
+                }
+                if dirs.contains_key(&key) {
+                    return Err(format!("{posisi}: kunci folder \"{key}\" diulang"));
+                }
+                dirs.insert(
+                    key.clone(),
+                    DirRule {
+                        glyph: glyph.clone(),
+                        family: family.clone(),
+                        lebar,
+                        fallback: pengganti,
+                    },
+                );
+                continue;
+            }
+
+            let tahap = Prioritas::dari_kind(&kind).ok_or_else(|| {
+                format!("{posisi}: kind \"{kind}\" tidak dikenal (name, suffix, prefix, ext, dir)")
+            })?;
+            if let Some(priority) = opsional_bulat(rule, "priority")? {
+                if priority != i64::from(tahap.angka()) {
+                    return Err(format!(
+                        "{posisi}: priority {priority} bertentangan dengan kind \"{kind}\" \
+                         (yang benar {})",
+                        tahap.angka()
+                    ));
+                }
+            }
+            if kind == "ext" && !key.starts_with('.') {
+                return Err(format!("{posisi}: kunci ext \"{key}\" harus diawali titik"));
+            }
+            if glyphs.get(&glyph).is_none() {
+                return Err(format!(
+                    "{posisi}: glyph \"{glyph}\" tidak ada di tabel glyph bawaan. \
+                     Peta kustom belum bisa memakai glyph baru; pakailah nama \
+                     yang sudah dikenal"
+                ));
+            }
+
+            let nama = Self::nama_kategori(&family, &glyph, bawaan_berkas, bawaan_folder);
+            let entry = kategori.entry(nama).or_insert_with(|| Category {
+                glyph: glyph.clone(),
+                family: family.clone(),
+                ext: Vec::new(),
+                names: Vec::new(),
+                prefix: Vec::new(),
+                suffix: Vec::new(),
+                by_ext: BTreeMap::new(),
+                lebar,
+                fallback: pengganti.clone(),
+            });
+            if entry.lebar != lebar || entry.fallback != pengganti {
+                return Err(format!(
+                    "{posisi}: `width` dan `fallback` harus sama untuk semua aturan \
+                     dalam satu kategori"
+                ));
+            }
+            match tahap {
+                Prioritas::Nama => entry.names.push(key),
+                Prioritas::Akhiran => entry.suffix.push(key),
+                Prioritas::Awalan => entry.prefix.push(key),
+                Prioritas::Ekstensi => entry.ext.push(key),
+                Prioritas::Bawaan => return Err(format!("{posisi}: kind bawaan bukan tahap")),
+            }
+        }
+
+        // Kategori bawaan harus ada walau tidak ada aturan yang memakainya:
+        // tanpa itu, berkas tanpa nama dan folder tanpa nama tidak punya apa pun
+        // untuk ditampilkan.
+        for (nama, def) in [
+            (crate::mapping::DEFAULT_FILE_CATEGORY, bawaan_berkas),
+            (crate::mapping::DEFAULT_DIR_CATEGORY, bawaan_folder),
+        ] {
+            if kategori.contains_key(nama) {
+                continue;
+            }
+            let posisi = format!("defaults.{nama}");
+            let glyph = wajib_teks(def, "glyph", &posisi)?;
+            let family = wajib_teks(def, "family", &posisi)?;
+            if !families.contains_key(&family) {
+                return Err(format!("{posisi}: keluarga \"{family}\" tidak ada"));
+            }
+            if glyphs.get(&glyph).is_none() {
+                return Err(format!("{posisi}: glyph \"{glyph}\" tidak dikenal"));
+            }
+            kategori.insert(
+                nama.to_string(),
+                Category {
+                    glyph,
+                    family,
+                    ext: Vec::new(),
+                    names: Vec::new(),
+                    prefix: Vec::new(),
+                    suffix: Vec::new(),
+                    by_ext: BTreeMap::new(),
+                    lebar: opsional_bulat(def, "width")?.and_then(|w| usize::try_from(w).ok()),
+                    fallback: opsional_teks(def, "fallback")?,
+                },
+            );
+        }
+
+        Self::dari_bagian(palet.clone(), families.clone(), kategori, dirs)
+    }
+
+    /// Nama kategori untuk sepasang (keluarga, glyph). Pasangan yang sama
+    /// selalu mendapat nama yang sama, jadi aturan yang berbagi glyph dan
+    /// keluarga benar-benar menjadi satu kategori.
+    fn nama_kategori(
+        family: &str,
+        glyph: &str,
+        bawaan_berkas: &Nilai,
+        bawaan_folder: &Nilai,
+    ) -> String {
+        let sama = |def: &Nilai| {
+            def.ambil("glyph").and_then(Nilai::teks) == Some(glyph)
+                && def.ambil("family").and_then(Nilai::teks) == Some(family)
+        };
+        if sama(bawaan_berkas) {
+            return crate::mapping::DEFAULT_FILE_CATEGORY.to_string();
+        }
+        if sama(bawaan_folder) {
+            return crate::mapping::DEFAULT_DIR_CATEGORY.to_string();
+        }
+        format!("{}_{}", family, glyph.replace(['-', '.'], "_"))
+    }
+}
+
+/// Tolak kunci level atas yang tidak dikenal, supaya salah ketik tidak hilang
+/// tanpa suara. `$schema` dikecualikan karena alat biasanya menambahkannya.
+fn cek_kunci_top(akar: &Nilai) -> Result<(), String> {
+    let Nilai::Object(peta) = akar else {
+        return Err("akar peta harus objek JSON".to_string());
+    };
+    for kunci in peta.keys() {
+        if kunci == "$schema" || KUNCI_TOP.contains(&kunci.as_str()) {
+            continue;
+        }
+        return Err(format!(
+            "kunci level atas \"{kunci}\" tidak dikenal oleh {SKEMA} (yang dikenal: {})",
+            KUNCI_TOP.join(", ")
+        ));
+    }
+    Ok(())
+}
+
+/// Kalau peta menyebut urutan tahap, isinya harus memuat keempat tahap
+/// kanonik. Kalau tidak disebut, urutan kanonik yang dipakai — jadi `order`
+/// bersifat konfirmasi, bukan sumber kebenaran kedua.
+fn cek_urutan(akar: &Nilai) -> Result<(), String> {
+    let Some(urutan) = akar.ambil("order").and_then(Nilai::array) else {
+        return Ok(());
+    };
+    let kanonik: Vec<&str> = Prioritas::URUTAN.iter().map(|p| p.kind()).collect();
+    let punya: Vec<&str> = urutan
+        .iter()
+        .map(|n| n.teks().unwrap_or_default())
+        .collect();
+    if kanonik.iter().all(|s| punya.contains(s)) && punya.len() == kanonik.len() {
+        return Ok(());
+    }
+    Err(format!(
+        "`order` harus memuat {} (tahap pencocokan), ditemukan {punya:?}",
+        kanonik.join(", ")
+    ))
+}
+
+/// Isi objek `kunci` sebagai pasangan teks. Nilai yang bukan string ditolak,
+/// bukan dipaksa jadi teks.
+fn peta_teks(akar: &Nilai, kunci: &str) -> Result<BTreeMap<String, String>, String> {
+    let isi = akar
+        .ambil(kunci)
+        .ok_or_else(|| format!("`{kunci}` wajib ada"))?;
+    let Nilai::Object(peta) = isi else {
+        return Err(format!("`{kunci}` harus objek"));
+    };
+    peta.iter()
+        .map(|(nama, nilai)| {
+            nilai
+                .teks()
+                .map(|t| (nama.clone(), t.to_string()))
+                .ok_or_else(|| format!("{kunci}.{nama} harus berupa teks"))
+        })
+        .collect()
+}
+
+/// Sub-node objek yang wajib ada dan harus berupa objek.
+fn sub_node<'a>(nilai: &'a Nilai, kunci: &str) -> Result<&'a Nilai, String> {
+    match nilai.ambil(kunci) {
+        Some(isi @ Nilai::Object(_)) => Ok(isi),
+        Some(_) => Err(format!("`{kunci}` harus objek")),
+        None => Err(format!("`{kunci}` wajib ada")),
+    }
+}
+
+/// Isi array `kunci`, atau galat yang menyebut nama field-nya.
+fn array<'a>(akar: &'a Nilai, kunci: &str) -> Result<&'a [Nilai], String> {
+    akar.ambil(kunci)
+        .and_then(Nilai::array)
+        .ok_or_else(|| format!("`{kunci}` harus berupa array"))
+}
+
+/// Field teks yang wajib ada dan tidak boleh kosong.
+fn wajib_teks(nilai: &Nilai, kunci: &str, posisi: &str) -> Result<String, String> {
+    nilai
+        .ambil(kunci)
+        .and_then(Nilai::teks)
+        .filter(|t| !t.is_empty())
+        .map(str::to_string)
+        .ok_or_else(|| format!("{posisi}: `{kunci}` wajib ada dan tidak boleh kosong"))
+}
+
+/// Field teks opsional. `null` diperlakukan sama dengan tidak ada.
+fn opsional_teks(nilai: &Nilai, kunci: &str) -> Result<Option<String>, String> {
+    match nilai.ambil(kunci) {
+        None | Some(Nilai::Null) => Ok(None),
+        Some(isi) => isi
+            .teks()
+            .map(|t| Some(t.to_string()))
+            .ok_or_else(|| format!("`{kunci}` harus berupa teks")),
+    }
+}
+
+/// Field angka bulat opsional. Pecahan ditolak.
+fn opsional_bulat(nilai: &Nilai, kunci: &str) -> Result<Option<i64>, String> {
+    match nilai.ambil(kunci) {
+        None | Some(Nilai::Null) => Ok(None),
+        Some(isi) => isi
+            .bulat()
+            .map(Some)
+            .ok_or_else(|| format!("`{kunci}` harus angka bulat")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{rules_dari_json, SKEMA};
+
+    const MINIMAL: &str = r#"{
+      "schema": "ticon-map/2",
+      "families": { "kerja": "green" },
+      "defaults": {
+        "file": { "glyph": "nf-md-file_outline", "family": "kerja", "fallback": "f" },
+        "dir": { "glyph": "nf-md-folder_outline", "family": "kerja", "fallback": "d" }
+      },
+      "rules": [
+        { "kind": "ext", "priority": 4, "key": ".myp", "family": "kerja",
+          "glyph": "nf-md-language_rust", "codepoint": 988695, "fallback": "rs" },
+        { "kind": "name", "priority": 1, "key": "catatan", "family": "kerja",
+          "glyph": "nf-md-note_outline", "codepoint": 988677 }
+      ]
+    }"#;
+
+    /// Bungkus satu aturan jadi peta lengkap supaya tiap kasus uji bisa fokus
+    /// pada satu hal yang salah.
+    fn bungkus(isi: &str) -> String {
+        format!(
+            r#"{{"schema":"{SKEMA}","families":{{"kerja":"green"}},"defaults":{{
+              "file":{{"glyph":"nf-md-file_outline","family":"kerja"}},
+              "dir":{{"glyph":"nf-md-folder_outline","family":"kerja"}}}},"rules":[{isi}]}}"#
+        )
+    }
+
+    #[test]
+    fn peta_minimal_dipakai() {
+        let rules = rules_dari_json(MINIMAL).expect("peta minimal harus bisa dipakai");
+        assert_eq!(rules.resolve_file("a.myp").glyph, "nf-md-language_rust");
+        assert_eq!(
+            rules.resolve_file("catatan").matched_by.label(),
+            "nama persis"
+        );
+        assert_eq!(rules.resolve_file("lain.txt").glyph, "nf-md-file_outline");
+        assert_eq!(rules.resolve_dir("apa-saja").glyph, "nf-md-folder_outline");
+    }
+
+    #[test]
+    fn skema_lama_ditolak_dengan_petunjuk() {
+        let pesan = rules_dari_json(r#"{"schema":"ticon-map/1"}"#)
+            .err()
+            .expect("skema lama ditolak");
+        assert!(pesan.contains("--export=json"), "{pesan}");
+    }
+
+    #[test]
+    fn nilai_tak_dikenal_ditolak() {
+        for (nama, isi) in [
+            (
+                "keluarga asing",
+                r#"{"kind":"ext","key":".x","family":"hantu","glyph":"nf-md-file_outline"}"#,
+            ),
+            (
+                "glyph asing",
+                r#"{"kind":"ext","key":".x","family":"kerja","glyph":"nf-md-hantu"}"#,
+            ),
+            (
+                "kind asing",
+                r#"{"kind":"warna","key":".x","family":"kerja","glyph":"nf-md-file_outline"}"#,
+            ),
+            (
+                "ext tanpa titik",
+                r#"{"kind":"ext","key":"x","family":"kerja","glyph":"nf-md-file_outline"}"#,
+            ),
+            (
+                "priority salah",
+                r#"{"kind":"ext","priority":1,"key":".x","family":"kerja","glyph":"nf-md-file_outline"}"#,
+            ),
+            (
+                "kunci tak dikenal",
+                r#"{"kind":"ext","key":".x","family":"kerja","glyph":"nf-md-file_outline","warnanya":"hijau"}"#,
+            ),
+            (
+                "folder huruf besar",
+                r#"{"kind":"dir","key":"Src","family":"kerja","glyph":"nf-md-folder_outline"}"#,
+            ),
+        ] {
+            let hasil = rules_dari_json(&bungkus(isi));
+            assert!(hasil.is_err(), "{nama} seharusnya ditolak");
+        }
+    }
+
+    #[test]
+    fn dua_kategori_tidak_bisa_beda_lebar_dalam_satu_kategori() {
+        let teks = r#"{
+          "schema": "ticon-map/2",
+          "families": { "kerja": "green" },
+          "defaults": {
+            "file": { "glyph": "nf-md-file_outline", "family": "kerja" },
+            "dir": { "glyph": "nf-md-folder_outline", "family": "kerja" }
+          },
+          "rules": [
+            { "kind": "ext", "key": ".a", "family": "kerja", "glyph": "nf-md-language_rust", "width": 2 },
+            { "kind": "ext", "key": ".b", "family": "kerja", "glyph": "nf-md-language_rust", "width": 1 }
+          ]
+        }"#;
+        let pesan = rules_dari_json(teks)
+            .err()
+            .expect("lebar beda dalam satu kategori ditolak");
+        assert!(pesan.contains("width"), "{pesan}");
+    }
+}
