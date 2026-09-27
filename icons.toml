@@ -115,10 +115,14 @@ out          = { glyph = "nf-md-cached",                 family = "redup" }
 [categories.folder]
 glyph = "nf-md-folder_outline"
 family = "dokumen"
+# Glyph pengganti untuk font tanpa Nerd Font. Kosong berarti kosong di ekspor
+# juga: lebih baik tidak ada daripada isinya tidak berbohong.
+fallback = "DIR"
 
 [categories.file]
 glyph = "nf-md-file_outline"
 family = "redup"
+fallback = "FILE"
 
 # ---------------------------------------------------------------------------
 #  Kode

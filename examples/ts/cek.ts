@@ -6,7 +6,7 @@
 //   node --experimental-strip-types examples/ts/cek.ts icons.json \
 //     tests/konformasi/nama.txt tests/konformasi/harapan.tsv
 //
-// Kalau selisih muncul, selisihnya dicetak baris demi baris.
+// Kalau selisih muncul, bedanya dicetak baris demi baris.
 
 import { readFileSync } from "node:fs";
 
@@ -30,7 +30,7 @@ const baris: string[] = readFileSync(berkasNama, "utf8")
     const nama = folder ? entri.slice(4) : entri;
     const h = folder ? ikonFolder(ix, nama) : ikonBerkas(ix, nama);
     const cp = h.ch === "?" ? "-" : "0x" + h.ch.codePointAt(0)!.toString(16);
-    return [entri, h.jenis, h.pola, h.warna, cp].join("\t");
+    return [entri, h.kind, h.pattern, h.color, cp].join("\t");
   });
 
 const sekarang = baris.join("\n") + "\n";
@@ -48,7 +48,7 @@ const b = harapan.split("\n");
 console.error("konformasi gagal: resolver TypeScript menyimpang dari korpus");
 for (let i = 0; i < Math.max(a.length, b.length); i++) {
   if (a[i] !== b[i]) {
-    console.error(`  baris ${i + 1}\n    TS   : ${a[i]}\n    korpus: ${b[i]}`);
+    console.error(`  baris ${i + 1}\n    TS    : ${a[i]}\n    korpus: ${b[i]}`);
   }
 }
 process.exit(1);

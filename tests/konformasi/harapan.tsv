@@ -1,51 +1,56 @@
 dir:src	dir	src	cyan	0xf0169
 dir:node_modules	dir	node_modules	dim	0xf03d7
 dir:.git	dir	.git	red	0xf062c
-dir:belum-dikenal-folder	bawaan		blue	0xf0256
+dir:belum-dikenal-folder	default		blue	0xf0256
 main.rs	ext	.rs	cyan	0xf1617
-app.test.ts	akhiran	.test.ts	green	0xf0668
-README.md	awalan	readme	blue	0xf05da
-Dockerfile	nama	dockerfile	cyan	0xf0868
-.env	nama	.env	red	0xf0bc5
+app.test.ts	suffix	.test.ts	green	0xf0668
+README.md	prefix	readme	blue	0xf05da
+Dockerfile	name	dockerfile	cyan	0xf0868
+.env	name	.env	red	0xf0bc5
 latest.py	ext	.py	cyan	0xf0320
 protest.cpp	ext	.cpp	cyan	0xf0672
-zzz.qqq	bawaan		dim	0xf0224
-foo_test.c	akhiran	_test.c	green	0xf0668
-FooTests.cs	akhiran	tests.cs	green	0xf0668
-FooSpec.scala	akhiran	spec.scala	green	0xf0668
-Makefile	nama	makefile	cyan	0xf0169
-LICENSE	awalan	license	white	0xf0fc3
-package.json	nama	package.json	yellow	0xf0626
-Cargo.toml	nama	cargo.toml	cyan	0xf0169
+zzz.qqq	default		dim	0xf0224
+foo_test.c	suffix	_test.c	green	0xf0668
+FooTests.cs	suffix	tests.cs	green	0xf0668
+FooSpec.scala	suffix	spec.scala	green	0xf0668
+Makefile	name	makefile	cyan	0xf0169
+LICENSE	prefix	license	white	0xf0fc3
+package.json	name	package.json	yellow	0xf0626
+Cargo.toml	name	cargo.toml	cyan	0xf0169
 arsip.tar.gz	ext	.tar.gz	yellow	0xf07b9
 tipe.d.ts	ext	.ts	cyan	0xf06e6
-a.b.c.d	bawaan		dim	0xf0224
-tanpa-ekstensi	bawaan		dim	0xf0224
-.gitignore	nama	.gitignore	red	0xf062c
-docker-compose.yml	nama	docker-compose.yml	cyan	0xf0868
-chart.yaml	nama	chart.yaml	cyan	0xf048d
-go.mod	nama	go.mod	yellow	0xf0626
-tests.cs	akhiran	tests.cs	green	0xf0668
+a.b.c.d	default		dim	0xf0224
+tanpa-ekstensi	default		dim	0xf0224
+.gitignore	name	.gitignore	red	0xf062c
+docker-compose.yml	name	docker-compose.yml	cyan	0xf0868
+chart.yaml	name	chart.yaml	cyan	0xf048d
+go.mod	name	go.mod	yellow	0xf0626
+tests.cs	suffix	tests.cs	green	0xf0668
 attest.rs	ext	.rs	cyan	0xf1617
 hotest.c	ext	.c	cyan	0xf0671
-README	awalan	readme	blue	0xf05da
+README	prefix	readme	blue	0xf05da
 NOTES.md	ext	.md	blue	0xf09ed
-.bashrc	nama	.bashrc	green	0xf07b7
-install.sh	awalan	install.	green	0xf07b7
-uninstall.sh	awalan	uninstall.	green	0xf07b7
-intro.txt	awalan	intro	blue	0xf05da
-CHANGELOG.md	awalan	changelog	green	0xf0135
-.env.local	nama	.env.local	red	0xf0bc5
+.bashrc	name	.bashrc	green	0xf07b7
+install.sh	prefix	install.	green	0xf07b7
+uninstall.sh	prefix	uninstall.	green	0xf07b7
+intro.txt	prefix	intro	blue	0xf05da
+CHANGELOG.md	prefix	changelog	green	0xf0135
+.env.local	name	.env.local	red	0xf0bc5
 CONTRIBUTING.md	ext	.md	blue	0xf09ed
 test_foo.py	ext	.py	cyan	0xf0320
-spec.scala	akhiran	spec.scala	green	0xf0668
-userspec.scala	akhiran	spec.scala	green	0xf0668
+spec.scala	suffix	spec.scala	green	0xf0668
+userspec.scala	suffix	spec.scala	green	0xf0668
 v0.1.0.md	ext	.md	blue	0xf09ed
 x.tar.gz	ext	.tar.gz	yellow	0xf07b9
 IMAGE.PNG	ext	.png	magenta	0xf0976
 Foto.JPEG	ext	.jpeg	magenta	0xf0976
-.prettierrc	awalan	.prettierrc	yellow	0xf0626
-.eslintrc.json	awalan	.eslintrc	yellow	0xf0626
-unknown.	bawaan		dim	0xf0224
+.prettierrc	prefix	.prettierrc	yellow	0xf0626
+.eslintrc.json	prefix	.eslintrc	yellow	0xf0626
+unknown.	default		dim	0xf0224
 1.rs	ext	.rs	cyan	0xf1617
-a.b	bawaan		dim	0xf0224
+a.b	default		dim	0xf0224
+catatan rheumatisme.txt	ext	.txt	white	0xf09ee
+ünïcode.md	ext	.md	blue	0xf09ed
+emoji-🎉.txt	ext	.txt	white	0xf09ee
+tres-long-dans-le-nom-de-fichier-qui-ne-ressemble-a-rien.rs	ext	.rs	cyan	0xf1617
+RUANG.KAPITAL.GAYA.LAIN	default		dim	0xf0224

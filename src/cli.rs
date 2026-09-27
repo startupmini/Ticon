@@ -26,7 +26,9 @@ Opsi:
         --gallery          cetak contoh ikon dari tiap aturan
         --audit            periksa konsistensi pemetaan
         --explain <nama>   kenapa nama itu dapat ikon tersebut
-        --export           cetak semua aturan (--export=json untuk format netral)
+        --export           cetak semua aturan (--export=json atau --format json)
+      --format <bentuk>  bentuk --export: tsv (bawaan) atau json
+      --icons-map <f>    pakai peta ikon netral (ticon-map/2), bukan icons.toml
     -h, --help             tampilkan bantuan ini
     -V, --version          tampilkan versi
 
@@ -84,6 +86,9 @@ pub struct Options {
     pub sort: Sort,
     /// Lebar kolom yang dipaksakan; `None` = pakai lebar terminal.
     pub width: Option<usize>,
+    /// Peta ikon netral (`ticon-map/2`) yang dipakai, bukan `icons.toml`
+    /// bawaan. `None` = bawaan.
+    pub icons_map: Option<PathBuf>,
 }
 
 /// Perintah yang bisa diminta ke `ticon`, hasil parsing argumen.
@@ -95,12 +100,15 @@ pub enum Command {
     Mapping(Options),
     /// Cetak contoh hasil ikon, satu per aturan.
     Gallery(Options),
-    /// Periksa konsistensi pemetaan.
-    Audit,
-    /// Jelaskan kenapa sebuah nama mendapat ikon tertentu.
-    Explain(String),
-    /// Cetak seluruh aturan ke stdout, dalam bentuk yang diminta.
-    Export(Format),
+    /// Periksa konsistensi peta yang dipakai, lalu keluar dengan pesan bila ada
+    /// yang janggal.
+    Audit(Option<PathBuf>),
+    /// Jelaskan kenapa sebuah nama mendapat ikon tertentu, memakai peta yang
+    /// diminta pengguna kalau ada.
+    Explain(String, Option<PathBuf>),
+    /// Cetak seluruh aturan ke stdout, dalam bentuk yang diminta, memakai peta
+    /// bawaan atau peta netral yang diminta pengguna.
+    Export(Format, Option<PathBuf>),
     /// Cetak bantuan dan keluar.
     Help,
     /// Cetak versi dan keluar.
@@ -196,6 +204,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Command {
         color: true,
         sort: Sort::Name,
         width: None,
+        icons_map: None,
     };
 
     // `None` berarti belum ditentukan; nilai bawaan diambil dari lingkungan
@@ -251,7 +260,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Command {
                 show_gallery = true;
                 Ok(())
             }
-            "--audit" => return Command::Audit,
+            "--audit" => return Command::Audit(options.icons_map.clone()),
             "--explain" => match take_value("--explain").and_then(|value| {
                 if value.is_empty() {
                     Err("opsi --explain butuh nama".to_string())
@@ -259,25 +268,45 @@ pub fn parse(args: impl Iterator<Item = String>) -> Command {
                     Ok(value)
                 }
             }) {
-                Ok(name) => return Command::Explain(name),
+                Ok(name) => return Command::Explain(name, options.icons_map.clone()),
                 Err(message) => return Command::Error(message),
             },
-            // Bentuk opsional hanya lewat `=`, supaya `--export` di followed
-            // path tidak ikut menelan nama berkas itu.
+            // Bentuk opsional diterima dengan `=` atau dengan spasi — tapi
+            // hanya kalau token berikutnya memang nama bentuk yang dikenal.
+            // Kalau bukan, itu nama path, dan tidak boleh ikut dimakan.
             "--export" => {
                 let format = match inline_value {
-                    Some(value) => match Format::parse(&value) {
-                        Some(format) => format,
-                        None => {
-                            return Command::Error(format!(
-                                "bentuk '{value}' tidak dikenal untuk --export (tsv | json)"
-                            ))
+                    Some(nilai) => Format::parse(&nilai).ok_or_else(|| {
+                        format!("bentuk '{nilai}' tidak dikenal untuk --export (tsv | json)")
+                    }),
+                    None => Ok(match args.peek().and_then(|n| Format::parse(n)) {
+                        Some(format) => {
+                            args.next();
+                            format
                         }
-                    },
-                    None => Format::Tsv,
+                        None => Format::Tsv,
+                    }),
                 };
-                return Command::Export(format);
+                return match format {
+                    Ok(format) => Command::Export(format, options.icons_map.clone()),
+                    Err(pesan) => Command::Error(pesan),
+                };
             }
+            // Alias yang lebih enak dibaca di skrip: `--format json`.
+            "--format" => {
+                return match take_value("--format") {
+                    Ok(nilai) => match Format::parse(&nilai) {
+                        Some(format) => Command::Export(format, options.icons_map.clone()),
+                        None => Command::Error(format!(
+                            "bentuk '{nilai}' tidak dikenal untuk --format (tsv | json)"
+                        )),
+                    },
+                    Err(pesan) => Command::Error(pesan),
+                };
+            }
+            "--icons-map" => take_value("--icons-map").map(|value| {
+                options.icons_map = Some(PathBuf::from(value));
+            }),
             "--icons" => take_value("--icons").and_then(|value| {
                 icon_mode = Some(Mode::parse(&value)?);
                 Ok(())

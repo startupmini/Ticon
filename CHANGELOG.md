@@ -4,6 +4,68 @@ Semua perubahan yang berarti bagi pengguna dicatat di sini. Formatnya
 mengikuti [Keep a Changelog](https://keepachangelog.com/), versinya
 [SemVer](https://semver.org/lang/id/).
 
+## 0.4.1
+
+Rilis ini memperbaiki beberapa hal yang terlewat di 0.4.0 — sebagian di antaranya
+saya temukan sendiri setelah scrutinize 0.4.0. Rinciannya di bawah, termasuk
+alasan di balik keputusan yang bisa diperdebatkan.
+
+### Berubah
+
+- **Kontrak JSON naik ke `ticon-map/2` dengan nama field netral.** `kind`, `key`,
+  `family`, `color`, `width`, `fallback`, `order`, `families`, `defaults`,
+  `rules`. `ticon-map/1` (dikirim bersama 0.4.0) memakai nama berbahasa
+  Indonesia dan **tidak kompatibel**; pemuatnya menolak berkas itu dengan pesan
+  yang mengarahkan ekspor ulang. Yang tetap bahasa Indonesia: dokumentasi dan
+  API Rust, sesuai bahasa repo ini. Yang di-English-kan hanya *identifier pada
+  wire format*, karena itu yang dibaca pihak ketiga di luar repo.
+- **`width_default` turun dari 2 ke 1.** Nilai 2 dulu hanya warisan perilaku
+  renderer lama, tidak pernah diukur, dan banyak terminal modern merender glyph
+  Nerd Font satu sel. `ticon` sendiri tidak memakainya untuk merender.
+- **`width` dan `fallback` hanya ditulis kalau diisi.** Di 0.4.0 setiap aturan
+  membawa `"fallback": "?"`, jadi field itu tidak pernah berarti. Lebih baik
+  tidak ada daripada isinya menebak. Dua kategori bawaan (`file`, `folder`) kini
+  punya `fallback` sungguhan.
+- **`order` tidak lagi memuat `default`.** `default` adalah hasil akhir, bukan
+  tahap pencocokan; menyatakannya di `order` hanya laporan implementasi
+  dan membuat kode perlu kasus khusus. Nilai `kind` pada tiap aturan juga memakai
+ token yang sama.
+- **`--export` bisa memakai bentuk dengan spasi** (`--export json`) dan ada
+  alias `--format json`. Sebelumnya hanya `--export=json` yang dikenali;
+  `--export json` diam-diam menghasilkan TSV.
+
+### Ditambahkan
+
+- **`ticon --icons-map <berkas>`**: peta netral bisa dipakai `ticon` itu sendiri,
+  jadi satu berkas benar-benar bisa dibuat siapa saja — termasuk ditulis tangan —
+  lalu dipakai oleh `ticon` maupun konsumen lain. Nilai yang tidak dikenal
+  **ditolak** (bukan diabaikan diam-diam), dan glyph harus sudah ada di tabel
+  bawaan; peta kustom belum bisa memunculkan glyph baru lewat `ticon`.
+- **`schema/ticon-map-2.json`**: JSON Schema (draft 2020-12) untuk kontrak ini,
+  dan ekspor menyertakan `$schema` supaya editor bisa memvalidasinya.
+- **`tests/ekspor.rs`**: memeriksa bahwa JSON benar-benar bisa diurai, lengkap,
+  konsisten dengan TSV, semua glyph punya codepoint yang cocok, dan **ekspor
+  bolak-balik tidak mengubah isi**. Ini menutup kelas bug yang tidak terlihat
+  dari korpus konformansi (mis. `codepoint` tercetak sebagai karakter).
+- **Parser JSON sendiri** (`src/json.rs`, std-only) dengan batas kedalaman,
+  penolakan input rusak, dan dukungan escape Unicode termasuk pasangan
+  surrogate.
+- **Job `publish` di `release.yml`**: crates.io kini terbit lewat workflow
+  (dengan persetujuan manual lewat `environment`, dan cek versi tag lebih
+  dulu), bukan `cargo publish` manual yang mudah terlupa.
+- **`ekspor_json` dan `ekspor_tsv` jadi API publik**, jadi skrip Rust bisa
+  mengambil peta tanpa memproses biner.
+- **Korpus konformansi diperluas** dengan nama ber-spasi, unicode, emoji,
+  sangat panjang, dan huruf besar semua.
+
+### Diketahui masih belum
+
+- Glyph baru di peta kustom belum bisa dipakai `ticon` (hanya lewat konsumen lain
+  yang punya tabel glyph sendiri). Pesan penolakannya menyebut ini.
+- `examples/ts/` adalah referensi, bukan starter kit: butuh Node ≥ 22.6 untuk
+  `--experimental-strip-types`, dan `import "./ikon.ts"` perlu
+  `allowImportingTsExtensions` di proyek tsc biasa.
+
 ## 0.4.0
 
 ### Ditambahkan

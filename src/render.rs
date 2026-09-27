@@ -15,12 +15,6 @@ use crate::mapping::Rules;
 /// Jarak antar kolom. Cukup untuk ikon + satu spasi tanpa terlihat rapat.
 pub const GAP: usize = 2;
 
-/// Berapa sel yang dipakai satu glyph Nerd Font, kalau data tidak
-/// menyebut lain. Dua di terminal modern; satu kalau font-nya sempit.
-/// Nilai ini hanya petunjuk untuk konsumen — keputusan sebenarnya tetap di
-/// aplikasi yang memakai font-nya.
-pub const LEBAR_GLYPH_BAWAAN: usize = 2;
-
 /// Bungkus `text` dengan escape ANSI untuk warna `color`, atau kembalikan
 /// apa adanya kalau warna dimatikan atau nama warnanya tidak dikenal.
 pub fn paint(rules: &Rules, enabled: bool, color: &str, text: &str) -> String {
