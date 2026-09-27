@@ -144,6 +144,54 @@ membawa glyph yang tidak terpakai. Regenerasi:
 python tools/gen-raster.py
 ```
 
+### Dua mode tanpa Nerd Font
+
+Glyph Nerd Font ada di codepoint *private-use*, jadi terminal yang tidak punya
+font itu menampilkan kotak. `ticon` tidak bisa mendeteksi itu dari dalam
+proses — itu pertanyaan terminal, bukan program — jadi pilihannya diberikan
+terbuka lewat **icon pack**.
+
+```bash
+ticon --icons-pack shape    # bentuk satu sel per keluarga warna
+ticon --icons-pack sempit   # bentuk yang PASTI satu sel di semua terminal
+```
+
+Yang mana yang benar bergantung pada terminal Anda, dan itu bisa diukur:
+
+* `shape` memakai karakter yang **terbukti ada** di font dasar, tapi
+  `East_Asian_Width`-nya `A` (*ambiguous*). Di terminal yang dikonfigurasi
+  *ambiguous = 2 sel* — lazim di mesin CJK — kolom bisa bergeser.
+* `sempit` hanya memakai karakter `N`/`Na`, jadi satu sel di mana pun. Lebih
+  membosankan, tapi tidak pernah merusak tata letak.
+
+`tools/audit-font.py` yang mengukur keduanya; lihat
+[auditing ikon](docs/konfigurasi.md#auditing-pack-dan-bentuk).
+
+### Pack milik sendiri
+
+`--icons-map` memuat peta yang **lengkap**. Kalau Anda cuma ingin mengganti
+lima ekstensi, icon pack lebih pas: isinya sebagian, digabung di atas peta
+dasar, dan aturan yang sama **diganti** — bukan ditumpuk.
+
+```bash
+ticon --icons-list-packs                       # apa yang tersedia
+ticon --icons-pack nord                        # dari ./ticon-packs/nord/pack.json
+ticon --icons-map icons.json --icons-pack nord # keduanya bisa dipakai
+```
+
+## Lokasi pack
+
+| urutan | lokasi | catatan |
+|---|---|---|
+| 1 | `$TICON_PACKS` | daftar direktori, `;` (Windows) atau `:` (Unix) |
+| 2 | `./ticon-packs/<nama>/pack.json` | per-proyek, ikut kontrol versi |
+| 3 | `%LOCALAPPDATA%\ticon-packs\<nama>\pack.json` | Windows |
+| 4 | `~/.local/share/ticon/packs/<nama>/pack.json` | XDG |
+| 5 | `~/.config/ticon/packs/<nama>/pack.json` | umum di Linux |
+
+Urutan ini bagian dari kontrak, bukan hasil kebetulan. Nama yang memuat `/`
+atau berakhiran `.json` diperlakukan sebagai path langsung.
+
 ## Pakai sebagai pustaka
 
 Paketnya bernama **`ticon`**; perintahnya tetap `ticon`. Pustakanya untuk

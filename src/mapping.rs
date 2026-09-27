@@ -256,6 +256,14 @@ pub struct Icon {
     pub color: String,
     /// Aturan mana yang menang.
     pub matched_by: MatchedBy,
+    /// Bentuk cadangan dari icon pack, kalau pack yang dipakai menyediakannya
+    /// untuk keluarga ikon ini.
+    ///
+    /// Sengaja terpisah dari [`Icon::ch`]: `ch` selalu Nerd Font, `shape` selalu
+    /// bentuk biasa. Pemanggil yang memakai Nerd Font tidak pernah diam-diam
+    /// mendapat bentuk, dan pemanggil yang tidak punya font tahu persis harus
+    /// melihat field mana.
+    pub shape: Option<char>,
 }
 
 /// Satu aturan yang cocok untuk sebuah nama.
@@ -524,6 +532,19 @@ impl Rules {
         Ok(rules)
     }
 
+    /// Keluarga yang memakai nama warna ini, kalau ada.
+    ///
+    /// `ticon` menegakkan satu warna = satu keluarga (dilakukan `ticon --audit`
+    /// dan `cargo test`), jadi pencarian ini tidak mungkin ambigu. Pemanggil yang
+    /// punya tabel `families` sendiri — mis. lewat peta netral — tetap wajib
+    /// memeriksa kebalikannya sendiri kalau ia tidak memakai aturan `ticon`.
+    pub fn family_dari_warna(&self, color: &str) -> Option<&str> {
+        self.families
+            .iter()
+            .find(|(_, nama)| nama.as_str() == color)
+            .map(|(keluarga, _)| keluarga.as_str())
+    }
+
     /// Ikon untuk nama folder, siap pakai. `matched_by` menjadi
     /// [`MatchedBy::WellKnownFolder`] kalau namanya dikenal, selain itu
     /// [`MatchedBy::Fallback`].
@@ -584,16 +605,58 @@ impl Rules {
         }
     }
 
-    /// Bentuk siap pakai untuk TUI: karakter + nama warna + asal aturan.
-    /// `ch` bernilai `None` hanya bila nama glyph-nya tidak ada di
+    /// Payloads that are ready to hand to a TUI: character, colour name, and
+    /// which rule won. `ch` is `None` only when the glyph name is missing from
     /// `assets/glyphs.toml`.
     pub fn icon_for(&self, glyphs: &Glyphs, name: &str) -> Icon {
         self.jadi_icon(glyphs, self.resolve_file(name))
     }
 
-    /// Seperti [`Rules::icon_for`], untuk nama folder.
+    /// Like [`Rules::icon_for`], for a directory name.
     pub fn icon_for_dir(&self, glyphs: &Glyphs, name: &str) -> Icon {
         self.jadi_icon(glyphs, self.resolve_dir(name))
+    }
+
+    /// Same as [`Rules::icon_for`], but with the fallback shape from an icon
+    /// pack applied when the pack provides one for this colour's family.
+    ///
+    /// `pack_shape` is deliberately `Option<&Bentuk>` rather than a field on
+    /// `Rules`: the shape is a *presentation* choice (it only matters when the
+    /// glyph cannot be drawn), and keeping it out of the map means a pack that
+    /// only changes icons cannot accidentally change shapes.
+    pub fn icon_for_dengan_shape(
+        &self,
+        glyphs: &Glyphs,
+        name: &str,
+        bentuk: Option<&crate::pack::Bentuk>,
+    ) -> Icon {
+        let resolved = self.resolve_file(name);
+        self.jadi_icon_dengan_shape(glyphs, resolved, bentuk, false)
+    }
+
+    /// Same as [`Rules::icon_for_dengan_shape`], for a directory name.
+    pub fn icon_for_dir_dengan_shape(
+        &self,
+        glyphs: &Glyphs,
+        name: &str,
+        bentuk: Option<&crate::pack::Bentuk>,
+    ) -> Icon {
+        let resolved = self.resolve_dir(name);
+        self.jadi_icon_dengan_shape(glyphs, resolved, bentuk, true)
+    }
+
+    fn jadi_icon_dengan_shape(
+        &self,
+        glyphs: &Glyphs,
+        resolved: Resolved,
+        bentuk: Option<&crate::pack::Bentuk>,
+        folder: bool,
+    ) -> Icon {
+        let mut icon = self.jadi_icon(glyphs, resolved);
+        if let Some(bentuk) = bentuk {
+            icon.shape = bentuk.untuk(self, &icon.color, folder);
+        }
+        icon
     }
 
     fn jadi_icon(&self, glyphs: &Glyphs, resolved: Resolved) -> Icon {
@@ -601,6 +664,7 @@ impl Rules {
             ch: glyphs.get(&resolved.glyph),
             color: resolved.color,
             matched_by: resolved.matched_by,
+            shape: None,
         }
     }
 

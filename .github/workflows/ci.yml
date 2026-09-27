@@ -64,6 +64,25 @@ jobs:
       - name: Audit ikon
         run: cargo run -- --audit
 
+      # Klaim "tidak butuh Nerd Font" dan "satu sel" harus diukur, bukan
+      # diasumsikan. Audit ini membaca `shapes` dari data pack dan mengeceknya
+      # ke font dasar Windows. Job inilah yang menjaga agar klaim di README
+      # tidak bisa lapuk diam-diam — pelajaran dari PR #17, yang sempat
+      # mengirim dokumentasi untuk fitur yang belum ada.
+      - name: Audit bentuk pack (tidak butuh Nerd Font)
+        if: runner.os == 'Windows'
+        run: |
+          python -m pip install --quiet fonttools
+          python tools/audit-pack.py
+
+      # `--sempit` sengaja **tidak** dijalankan untuk semua pack: pack `shape`
+      # memang memakai karakter ambiguous-width, dan itu keputusan desainnya.
+      # Yang dijaga di sini pack `sempit` saja — namanya menjanjikan, jadi ia
+      # wajib benar-benar sempit.
+      - name: Audit pack 'sempit' benar-benar sempit
+        if: runner.os == 'Windows'
+        run: python tools/audit-pack.py --sempit --hanya sempit
+
       - name: Build rilis
         run: cargo build --release
 

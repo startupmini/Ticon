@@ -1,0 +1,23 @@
+{
+  "$schema": "https://ticon.pages.dev/schema/ticon-pack-1.json",
+  "schema": "ticon-pack/1",
+  "pack": {
+    "name": "shape",
+    "version": "1.0.0",
+    "description": "Bentuk satu sel per keluarga warna; tidak butuh Nerd Font. Bentuknya EBWIDTH ambiguous, jadi di terminal yang mengonfigurasi 'ambiguous = lebar' kolom bisa bergeser dua sel. Pakai pack 'sempit' kalau itu tidak boleh terjadi.",
+    "author": "ticon",
+    "license": "MIT",
+    "min_ticon": "0.4.3"
+  },
+  "shapes": {
+    "kode": "≡",
+    "kerja": "→",
+    "dokumen": "§",
+    "data": "●",
+    "media": "▲",
+    "aman": "♦",
+    "netral": "□",
+    "redup": "▪"
+  },
+  "folder_shape": "▼"
+}
