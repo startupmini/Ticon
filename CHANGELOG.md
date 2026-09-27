@@ -4,6 +4,41 @@ Semua perubahan yang berarti bagi pengguna dicatat di sini. Formatnya
 mengikuti [Keep a Changelog](https://keepachangelog.com/), versinya
 [SemVer](https://semver.org/lang/id/).
 
+## 0.4.2
+
+Rilis keamanan: jalur pemuatan peta netral (`--icons-map`, diperkenalkan di
+0.4.1) **melewati** gerbang karakter kontrol yang sudah ada untuk `icons.toml`.
+Temuan ini berasal dari tinjauan keamanan terhadap kode sendiri, bukan dari
+laporan pihak ketiga.
+
+### Diperbaiki
+
+- **Injeksi terminal lewat peta netral.** `SECURITY.md` sudah menyatakan data
+  pemetaan ditolak bila memuat karakter kontrol/bidi — tapi pemeriksaan itu hanya
+  ada di `Rules::load_from` untuk `icons.toml`. Satu karakter ESC pada `key`,
+  `fallback`, atau nama keluarga di `icons.json` akan ikut ke output terminal.
+  Sekarang **setiap** string dari peta melewati `cek_aman` sebelum masuk `Rules`,
+  lewat satu titik rempit (`wajib_teks`/`opsional_teks`) supaya field baru di
+  kemudian hari tidak bisa melewatinya.
+- **Pesan galat jadi vektor kedua.** Nama kunci yang tidak dikenal ikut
+  disanitasi sebelum dicetak, jadi pesan penolakan tidak bisa menyuntikkan ESC.
+- **Peta tanpa batas ukuran.** `--icons-map` membaca berkas sepenuhnya; kini
+  berkas di atas 4 MiB ditolak berdasarkan metadata, sebelum isinya dimuat.
+- **Kunci aturan kembar.** Dua aturan dengan `kind` + `key` sama dulu memilih
+  yang pertama diam-diam; sekarang ditolak, karena "mana yang menang?" tidak
+  punya jawaban yang bisa ditebak.
+
+### Ditambahkan
+
+- **`tests/keamanan.rs`** (9 tes) untuk gerbang jalur peta netral. Enam di
+  antaranya dibuktikan **gagal pada build rentan** lewat uji diferensial, jadi
+  menguji perbaikan dan bukan sekadar ikut hijau.
+- BOM di depan peta dilewati, bukan ditolak dengan pesan yang membingungkan.
+
+### Tidak berubah
+
+Kolom TSV, kontrak `ticon-map/2`, dan perilaku bawaan perintah tidak berubah.
+
 ## 0.4.1
 
 Rilis ini memperbaiki beberapa hal yang terlewat di 0.4.0 — sebagian di antaranya
