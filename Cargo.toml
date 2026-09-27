@@ -16,7 +16,9 @@ license = "MIT"
 repository = "https://github.com/startupmini/Ticon"
 # Pratinjau README (SVG dan font subset render gambar) hanya untuk situs —
 # binary maupun pustaka tidak membutuhkannya, jadi jangan ikut paket.
-# `assets/raster.ttf` justru ikut: itu input untuk jalur render half-block.
+# `assets/ticon-icons.ttf` dan `assets/FONT-LICENSE.txt` justru ikut: font ikon
+# milik proyek ini (turunan Nerd Fonts, OFL 1.1) untuk jalur render half-block.
+# OFL mewajibkan berkas lisensi ikut tersebar, jadi jangan salah satu.
 exclude = ["/preview.svg", "/assets/preview/**"]
 
 [lib]

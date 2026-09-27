@@ -52,14 +52,17 @@ mengikuti [Keep a Changelog](https://keepachangelog.com/), versinya
   Di-audit di CI pada job Windows (`tools/audit-pack.py`), dan tes di
   `tests/pack.rs` menjaga karakternya tidak pernah jadi PUA atau glyph Nerd
   Font — kalau begitu, "tidak butuh font" cuma jadi bohong.
-- **Subset font Nerd Fonts ikut dikemas** (`assets/raster.ttf`, 14,1 KiB dari
-  2,2 MB; 55 glyph). Bukan untuk jalur karakter — terminal tetap memakai font
-  miliknya sendiri — tapi sebagai input jalur render half-block someday, supaya
-  konsumen tidak perlu mengunduh 2,2 MB. `tests/subset-font.rs` menjaga subset
-  itu tetap pas: gagal kalau `icons.toml` memakai glyph yang tidak ada di
-  subset, dan juga kalau subsetnya membawa glyph yang tidak terpakai.
-- **`tools/gen-raster.py`**: membuat subset dan `src/raster_data.rs` dari
-  `icons.toml`, dengan verifikasi SHA-256 arsip upstream.
+- **Font ikon milik proyek ikut dikemas** (`assets/ticon-icons.ttf`, 15,0 KiB dari
+  2,2 MB; 55 glyph): turunan DepartureMono (Nerd Fonts) yang di-rename menjadi
+  "Ticon Icons", dengan teks lisensi OFL 1.1 ikut serta. Bukan untuk jalur
+  karakter — terminal tetap memakai font miliknya sendiri — tapi sebagai input
+  jalur render half-block someday, supaya konsumen tidak perlu mengunduh 2,2 MB.
+  `tests/subset-font.rs` menjaga font dan data tetap sinkron: gagal kalau
+  `icons.toml` memakai glyph yang tidak ada di font, dan juga kalau fontnya
+  membawa glyph yang tidak terpakai.
+- **`tools/gen-font.py`**: membuat font ikon dan `src/raster_data.rs` dari
+  `icons.toml`, dengan verifikasi SHA-256 arsip upstream. `--cek` memastikan
+  nama, lisensi, dan kelengkapan glyph.
 
 ### Diperbaiki
 

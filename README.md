@@ -122,27 +122,41 @@ paket** — terminal memakai font yang dipasang pengguna, dan program tidak bisa
 memaksanya. Yang bisa membawa font sendiri adalah program yang me-*raster* sendiri
 (jalur half-block).
 
-Maka yang dikemas adalah **subset**, bukan font penuh:
+Maka yang dikemas adalah **font ikon milik proyek ini**: `assets/ticon-icons.ttf`,
+hasil subset 55 glyph dari DepartureMono (Nerd Fonts), lalu **direname** jadi
+"Ticon Icons".
 
 | berkas | ukuran | isi |
 |---|---|---|
 | font penuh (DepartureMono Nerd Font) | 2,2 MB | ±4.000 glyph |
-| `assets/raster.ttf` (dikemas) | **14,1 KiB** | 55 glyph yang benar dipakai `ticon` |
-| `src/raster_data.rs` (dikemas) | 2,8 KiB | nama glyph → codepoint |
+| `assets/ticon-icons.ttf` (dikemas) | **15,0 KiB** | 55 glyph yang dipakai `ticon` |
+| `assets/FONT-LICENSE.txt` (dikemas) | 4,6 KiB | teks OFL 1.1, wajib ikut |
+| `src/raster_data.rs` (dikemas) | 2,6 KiB | nama glyph → codepoint |
 
-Lisensinya SIL OFL 1.1 (bukan MIT seperti yang tertulis di README upstream),
-jadi `assets/preview/LICENSE` ikut disimpan. Provenansnya lengkap: tag upstream,
-nama berkas, dan SHA-256 arsip ada di `tools/gen-raster.py`.
+Lisensinya **SIL OFL 1.1** — bukan MIT seperti tertulis di README upstream. OFL
+mengizinkan modifikasi dan distribusi ulang, dengan syarat: tetap di bawah OFL,
+teks lisensi ikut, dan tidak dijual terpisah. Header upstream **tidak**
+mendeklarasikan *Reserved Font Name*, jadi nama lamanya boleh dipakai — tetap
+saja di sini diganti, supaya pengguna tahu font mana yang mereka pasang.
 
-Yang **belum** dipakai jalur karakter — dan itu disengaja. Subset ini ada supaya
-jalur raster tidak perlu unduh 2,2 MB, dan supaya tidak ada glyph yang hilang
-diam-diam: `tests/subset-font.rs` gagal kalau `icons.toml` ditambah glyph baru
-tanpa `python tools/gen-raster.py` dijalankan, dan juga gagal kalau subsetnya
-membawa glyph yang tidak terpakai. Regenerasi:
+Kustomisasinya sengaja **hanya nama**: family, subfamily, full name, PostScript
+name, dan metadata lisensi. Bentuk glyphonya tidak disentuh — menggambar ulang
+ikon berarti mengganti karya Helena Zhang tanpa menambah apa pun bagi pengguna.
+
+Regenerasi dan verifikasi:
 
 ```bash
-python tools/gen-raster.py
+python tools/gen-font.py          # bangun ulang (verifikasi SHA-256 arsip)
+python tools/gen-font.py --cek    # nama, lisensi, kelengkapan glyph
 ```
+
+`tests/subset-font.rs` gagal kalau `icons.toml` memakai glyph yang tidak ada di
+font, jadi data dan font tidak bisa tidak sinkron diam-diam.
+
+**Yang harus jelas:** font yang kami kirim **tidak otomatis dipakai terminal**.
+Terminal memakai font yang dipasang pengguna, jadi font ini baru berguna kalau
+(a) pengguna meng-*install* `ticon-icons.ttf`, atau (b) program me-*raster*
+sendiri dengan font ini — jalur half-block, yang belum ada.
 
 ### Dua mode tanpa Nerd Font
 

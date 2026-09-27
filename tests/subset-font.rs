@@ -40,8 +40,8 @@ fn subset_font_mencakup_semua_glyph_yang_dipakai() {
         .collect();
     assert!(
         kurang.is_empty(),
-        "glyph ini dipakai icons.toml tapi tidak ada di assets/raster.ttf: {kurang:?}. \
-         Jalankan `python tools/gen-raster.py`"
+        "glyph ini dipakai icons.toml tapi tidak ada di assets/ticon-icons.ttf: {kurang:?}. \
+         Jalankan `python tools/gen-font.py`"
     );
 }
 
