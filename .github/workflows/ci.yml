@@ -4,9 +4,10 @@
 # Test sudah memuat audit pemetaan, tapi dijalankan terpisah juga supaya
 # kegagalannya langsung terbaca sebagai langkah "Audit ikon" di UI GitHub.
 #
-# Dijalankan di Linux DAN Windows karena `src/terminal.rs` memanggil API
-# konsol Win32 lewat FFI: kompilator tidak menangkap layout struct yang salah,
-# hanya jalannya tes di platform itu yang menangkap.
+# Dijalankan di tiga sistem operasi karena `src/terminal.rs` punya dua jalur
+# yang mustahil dicek kompilator: FFI konsol Win32 (layout struct yang salah
+# hanya ketahuan saat tes berjalan di Windows) dan ioctl Unix (hanya ketahuan
+# saat tes berjalan di Linux/macOS). Ketiganya wajib hijau, bukan hanya satu.
 name: ci
 
 on:
@@ -23,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       # Action dipin ke commit SHA, bukan tag/branch yang bergerak:

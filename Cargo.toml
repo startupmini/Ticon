@@ -1,6 +1,6 @@
 [package]
 name = "ikon"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 # MSRV 1.85 — bukan karena kode kita butuh itu (`std::iter::repeat_n` sudah
 # cukup 1.82), tapi karena `indexmap` (lewat `toml_edit`) memakai manifest
