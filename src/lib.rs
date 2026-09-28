@@ -91,7 +91,7 @@ pub fn run() -> ExitCode {
 ///
 /// Bentuk sengaja di sini, bukan di dalam [`Rules`], karena bentuk cuma perlu
 /// kalau glyph Nerd Font tidak bisa digambar — dan pemanggil TUI yang punya
-/// font sendiri tidak pernahFQ perlu settling vecinya.
+/// font sendiri tidak perlu memikirkan bentuknya sama sekali.
 pub struct Muat {
     /// Peta ikon yang dipakai (bawaan, atau peta netral + pack).
     pub rules: Rules,
@@ -1079,10 +1079,12 @@ fn audit(rules: &Rules, glyphs: &Glyphs) -> Result<ExitCode, String> {
         return Ok(ExitCode::SUCCESS);
     }
 
+    // Tanpa prefix di sini: `run()` sudah mencantumkan `ticon: ` di depan
+    // setiap pesan galat, jadi menambahnya lagi menghasilkan dua prefix.
     let mut report = String::new();
     let _ = writeln!(
         report,
-        "ticon: {} masalah konsistensi di icons.toml:",
+        "{} masalah konsistensi di icons.toml:",
         findings.len()
     );
     for finding in &findings {

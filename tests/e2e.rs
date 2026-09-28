@@ -87,6 +87,13 @@ fn list_ditolak_untuk_path() {
     assert!(!hasil.status.success(), "`--list` seharusnya menolak path");
     let pesan = String::from_utf8_lossy(&hasil.stderr);
     assert!(pesan.contains("--list") && pesan.contains("src"), "{pesan}");
+    // Prefix pesan galat harus nama binernya. Ini pernah `ikon:` padahal
+    // binernya `ticon`, jadi pengguna melihat sesuatu yang tidak bisa mereka
+    // panggil.
+    assert!(
+        pesan.starts_with("ticon:"),
+        "prefix harus `ticon:`, dapat: {pesan}"
+    );
 }
 
 #[test]
@@ -138,6 +145,51 @@ fn peta_netral_tertulis_tangan_dipakai() {
     assert!(
         keluar.contains("green"),
         "warna harus ikut dari peta kustom: {keluar}"
+    );
+}
+
+#[test]
+fn audit_temuan_mempunyai_satu_prefix_saja() {
+    // `audit()` mengembalikan laporannya sebagai `Err`, dan `run()` menambahkan
+    // `ticon: ` sendiri. Kalau laporannya sudah berprefix, yang keluar adalah
+    // `ticon: ticon: …`. Kecacatan ini ada sejak 0.4.0 dan tidak pernah
+    // tertangkap karena tidak ada tes yang men-trigger temuan audit.
+    let dir = std::env::temp_dir().join("ikon-e2e-audit-temuan");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).expect("folder uji harus bisa dibuat");
+    let peta = dir.join("icons.json");
+    // Dua keluarga berbagi satu warna — persis temuan yang dicari `audit()`.
+    fs::write(
+        &peta,
+        r#"{
+  "schema": "ticon-map/2",
+  "families": { "kerja": "green", "dokumen": "green" },
+  "defaults": {
+    "file": { "glyph": "nf-md-file_outline", "family": "kerja", "fallback": "F" },
+    "dir": { "glyph": "nf-md-folder_outline", "family": "kerja", "fallback": "D" }
+  },
+  "rules": [
+    { "kind": "ext", "priority": 4, "key": ".aa1", "family": "kerja",
+      "glyph": "nf-md-language_rust", "codepoint": 988695, "fallback": "rs" },
+    { "kind": "ext", "priority": 4, "key": ".bb2", "family": "dokumen",
+      "glyph": "nf-md-language_go", "codepoint": 985043, "fallback": "go" }
+  ]
+}"#,
+    )
+    .expect("peta uji harus bisa ditulis");
+
+    let hasil = ikon(&["--icons-map", peta.to_str().expect("path"), "--audit"]);
+    let _ = fs::remove_dir_all(&dir);
+
+    assert!(
+        !hasil.status.success(),
+        "temuan audit harus bikin exit code bukan nol"
+    );
+    let pesan = String::from_utf8_lossy(&hasil.stderr);
+    assert!(pesan.contains("masalah konsistensi"), "{pesan}");
+    assert!(
+        pesan.starts_with("ticon:") && !pesan.contains("ticon: ticon:"),
+        "harus tepat satu prefix `ticon:`, dapat: {pesan}"
     );
 }
 
