@@ -1,7 +1,7 @@
 [package]
 name = "ticon"
 # Pustaka dan binary satu paket dengan satu nama: `ticon`.
-version = "0.4.3"
+version = "0.4.4"
 edition = "2021"
 # MSRV 1.85 — bukan karena kode kita butuh itu (`std::iter::repeat_n` sudah
 # cukup 1.82), tapi karena `indexmap` (lewat `toml_edit`) memakai manifest
@@ -10,7 +10,7 @@ edition = "2021"
 rust-version = "1.85"
 # Nama `ikon` sudah dipakai crate lain di crates.io, jadi paket ini memakai
 # `ticon`. Dipasang dari GitHub juga bisa:
-#   cargo install --git https://github.com/startupmini/Ticon --tag v0.2.0
+#   cargo install --git https://github.com/startupmini/Ticon --tag v0.4.4
 description = "Ikon minimalis dan flat untuk terminal, plus pustaka pemetaannya"
 license = "MIT"
 repository = "https://github.com/startupmini/Ticon"

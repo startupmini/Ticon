@@ -60,17 +60,23 @@ penjaganya sendiri:
 
 ## Pasang
 
-Proyek ini dikirim lewat GitHub, bukan crates.io — nama `ticon` sudah dipakai
-crate lain di sana, dan aplikasi ini memang tidak dimaksudkan menjadi pustaka
-yang diimpor.
+```bash
+cargo install ticon          # dari crates.io
+```
+
+Atau langsung dari GitHub:
 
 ```bash
 # dari tag rilis
-cargo install --git https://github.com/startupmini/Ticon --tag v0.3.0
+cargo install --git https://github.com/startupmini/Ticon --tag v0.4.4
 
-# atau langsung dari branch utama
+# atau dari branch utama (bisa saja belum stabil)
 cargo install --git https://github.com/startupmini/Ticon
 ```
+
+Biner siap pakai untuk Windows / Linux / macOS ada di
+[halaman rilis](https://github.com/startupmini/Ticon/releases) — untuk yang tidak
+memasang toolchain Rust.
 
 Trial tanpa memasang sama sekali:
 
@@ -79,16 +85,16 @@ cargo run --quiet -- <args>
 ```
 
 Kebutuhan minimum: Rust 1.85 — angka ini berasal dari dependensi (bukan dari
-kode `ticon` sendiri) dan dijaga job `msrv` di CI. Diuji di Linux dan Windows;
-lebar terminal di macOS/Linux diambil lewat `ioctl`.
+kode `ticon` sendiri) dan dijaga job `msrv` di CI. Diuji di Linux, macOS, dan
+Windows; lebar terminal di macOS/Linux diambil lewat `ioctl`.
 
 ## Pakai
 
 ```
-ikon                      # daftar direktori saat ini
-ikon src/                 # beberapa path sekaligus juga bisa
-ikon -a --sort size       # termasuk berkas tersembunyi, urut ukuran
-ikon -1                   # satu entri per baris
+ticon                      # daftar direktori saat ini
+ticon src/                 # beberapa path sekaligus juga bisa
+ticon -a --sort size       # termasuk berkas tersembunyi, urut ukuran
+ticon -1                   # satu entri per baris
 ticon --list               # cetak seluruh tabel pemetaan, untuk ditinjau
 ticon --gallery            # cetak contoh ikon dari tiap aturan
 ticon --audit              # periksa konsistensi icons.toml
@@ -209,7 +215,7 @@ atau berakhiran `.json` diperlakukan sebagai path langsung.
 ## Pakai sebagai pustaka
 
 Paketnya bernama **`ticon`**; perintahnya tetap `ticon`. Pustakanya untuk
-aplikasi TUI, previewer, atau apa pun yang butuh tauhu  ikon sebuah nama
+aplikasi TUI, previewer, atau apa pun yang butuh tahu ikon sebuah nama
 tanpa memanggil proses luar:
 
 ```rust

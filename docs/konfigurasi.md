@@ -273,7 +273,7 @@ Checklist:
 Contoh laporan bila ada masalah:
 
 ```text
-ikon: 3 masalah konsistensi di icons.toml:
+ticon: 3 masalah konsistensi di icons.toml:
   - keluarga 'netral' dan 'dokumen' berbagi warna 'blue' — satu warna harus satu keluarga
   - 'doc' dan 'note' bersebelahan di icons.toml tapi beda keluarga ('netral' vs 'dokumen') dengan warna sama 'blue'
   - pemakaian 'dim' mencapai 17 aturan, batasnya 10 — ...
