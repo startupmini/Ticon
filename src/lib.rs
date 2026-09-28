@@ -80,7 +80,7 @@ pub fn run() -> ExitCode {
     match execute() {
         Ok(code) => code,
         Err(message) => {
-            eprintln!("ikon: {message}");
+            eprintln!("ticon: {message}");
             ExitCode::FAILURE
         }
     }
@@ -337,7 +337,7 @@ fn list(
         let metadata = match fs::symlink_metadata(path) {
             Ok(metadata) => metadata,
             Err(error) => {
-                eprintln!("ikon: {}: {error}", path.display());
+                eprintln!("ticon: {}: {error}", path.display());
                 failures += 1;
                 continue;
             }
@@ -1082,7 +1082,7 @@ fn audit(rules: &Rules, glyphs: &Glyphs) -> Result<ExitCode, String> {
     let mut report = String::new();
     let _ = writeln!(
         report,
-        "ikon: {} masalah konsistensi di icons.toml:",
+        "ticon: {} masalah konsistensi di icons.toml:",
         findings.len()
     );
     for finding in &findings {

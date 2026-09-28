@@ -214,11 +214,11 @@ fn nilai_yang_ditolak() {
         ),
     ];
 
-    for (nama, isi, economics) in kasus {
+    for (nama, isi, ekspektasi) in kasus {
         let pesan = muat(isi)
             .err()
             .unwrap_or_else(|| panic!("{nama} seharusnya ditolak, tapi diterima"));
-        assert!(pesan.contains(economics), "{nama}: {pesan}");
+        assert!(pesan.contains(ekspektasi), "{nama}: {pesan}");
     }
 
     let meta_asing = mentah(&format!(

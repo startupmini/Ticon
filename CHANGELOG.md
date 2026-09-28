@@ -6,12 +6,39 @@ mengikuti [Keep a Changelog](https://keepachangelog.com/), versinya
 
 ## Belum rilis
 
+## 0.4.4
+
+### Ditambahkan
+
+- **Font ikon milik proyek ikut dikemas** (`assets/ticon-icons.ttf`, 15,0 KiB dari
+  2,2 MB; 55 glyph): turunan DepartureMono (Nerd Fonts) yang di-rename menjadi
+  "Ticon Icons", dengan teks lisensi OFL 1.1 ikut serta. Bukan untuk jalur
+  karakter — terminal tetap memakai font miliknya sendiri — tapi sebagai input
+  jalur render half-block someday, supaya konsumen tidak perlu mengunduh 2,2 MB.
+  `tests/subset-font.rs` menjaga font dan data tetap sinkron: gagal kalau
+  `icons.toml` memakai glyph yang tidak ada di font, dan juga kalau fontnya
+  membawa glyph yang tidak terpakai.
+- **`tools/gen-font.py`**: membuat font ikon dan `src/raster_data.rs` dari
+  `icons.toml`, dengan verifikasi SHA-256 arsip upstream. `--cek` memastikan
+  nama, lisensi, dan kelengkapan glyph.
+- **`tools/hitung-ikon.py`**: mengukur berapa ikon yang mungkin tanpa
+  menginstal apa pun — berapa codepoint yang ada di 7 font Windows umum,
+  dan berapa yang ada di semuanya. Angka inilah yang menentukan batas nyata
+  paket `shape` / `sempit`, supaya keputusan soal font bisa berdasar pengukuran.
+
 ### Diperbaiki
 
 - **`--icons-list-packs` tidak bisa di-cut.** Pemisah tab ikut ter-*sanitize*
   sehingga berubah jadi teks `\u{9}`. Sanitasi sekarang dilakukan per bagian
   sebelum kolom dirangkai. Ditutup tes e2e yang memakai `split('\t')` sungguhan.
 - **Typo di keterangan pack `shape`** yang tampil ke pengguna.
+- **Pesan galat memakai prefix `ikon:`** padahal binernya `ticon`; menjalankan
+  `ticon --audit` lalu melihat `ikon: 3 masalah…` membingungkan. Prefix jadi
+  `ticon:` — termasuk yang dicetak `--audit`, `--list`, dan pesan gagal muat.
+- **README mengklaim proyek ini tidak ada di crates.io**, padahal sudah terbit;
+  perbaikan yang sama pernah ditulis di changelog namun tidak sampai ke berkasnya.
+  Bagian Pasang sekarang menunjuk `cargo install ticon` (perintah tetap `ticon`)
+  beserta jalur GitHub, dan contoh perintah tidak lagi memakai `ikon`.
 
 ## 0.4.3
 
@@ -32,7 +59,7 @@ mengikuti [Keep a Changelog](https://keepachangelog.com/), versinya
   diam-diam mendapat bentuk.
 - **`Rules::icon_for_dengan_shape` / `icon_for_dir_dengan_shape`**, plus
   `Rules::family_dari_warna`.
-- **`Glyphs::chars()`** untuk memeriksa karakter glyph tanpaazu nama.
+- **`Glyphs::chars()`** untuk memeriksa karakter glyph tanpa mengetahui namanya.
 - **`Muat`**: satu pintu masuk memuat peta dasar + pack, untuk konsumen TUI yang
   butuh daftar ikon yang sudah digabung.
 
@@ -43,31 +70,6 @@ mengikuti [Keep a Changelog](https://keepachangelog.com/), versinya
   bentuknya tidak pernah masuk repo. README sekarang menunjuk
   `--icons-pack shape` / `--icons-pack sempit`, dan keduanya benar-benar ada
   (lihat bagian "Ditambahkan" di atas), lengkap dengan tesnya.
-
-### Ditambahkan
-
-- **`--icons-pack shape` / `--icons-pack sempit`**: mode tanpa Nerd Font.
-  Bentuk satu sel per keluarga warna, atau — kalau kolom TUI tidak boleh
-  bergeser — bentuk yang `East_Asian_Width`-nya cuma `N`/`Na`.
-  Di-audit di CI pada job Windows (`tools/audit-pack.py`), dan tes di
-  `tests/pack.rs` menjaga karakternya tidak pernah jadi PUA atau glyph Nerd
-  Font — kalau begitu, "tidak butuh font" cuma jadi bohong.
-- **Font ikon milik proyek ikut dikemas** (`assets/ticon-icons.ttf`, 15,0 KiB dari
-  2,2 MB; 55 glyph): turunan DepartureMono (Nerd Fonts) yang di-rename menjadi
-  "Ticon Icons", dengan teks lisensi OFL 1.1 ikut serta. Bukan untuk jalur
-  karakter — terminal tetap memakai font miliknya sendiri — tapi sebagai input
-  jalur render half-block someday, supaya konsumen tidak perlu mengunduh 2,2 MB.
-  `tests/subset-font.rs` menjaga font dan data tetap sinkron: gagal kalau
-  `icons.toml` memakai glyph yang tidak ada di font, dan juga kalau fontnya
-  membawa glyph yang tidak terpakai.
-- **`tools/gen-font.py`**: membuat font ikon dan `src/raster_data.rs` dari
-  `icons.toml`, dengan verifikasi SHA-256 arsip upstream. `--cek` memastikan
-  nama, lisensi, dan kelengkapan glyph.
-
-### Diperbaiki
-
-- README mengklaim proyek ini tidak ada di crates.io; sebenarnya sudah terbit,
-  jadi cara pasangnya (termasuk `cargo add ticon`) diperbarui.
 
 ## 0.4.2
 
